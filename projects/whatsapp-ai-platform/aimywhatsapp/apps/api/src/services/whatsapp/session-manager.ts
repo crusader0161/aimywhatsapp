@@ -230,7 +230,7 @@ export class WASessionManager {
     if (!session?.socket) throw new Error('Session not connected')
 
     const result = await session.socket.sendMessage(jid, { text: content })
-    return result?.key.id
+    return result?.key.id ?? undefined
   }
 
   async sendMedia(
@@ -259,7 +259,7 @@ export class WASessionManager {
         caption,
       })
     }
-    return result?.key.id
+    return result?.key.id ?? undefined
   }
 
   async disconnectSession(sessionId: string): Promise<void> {
