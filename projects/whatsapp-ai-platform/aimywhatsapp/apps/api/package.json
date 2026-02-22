@@ -20,6 +20,7 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/static": "^7.0.4",
     "@hapi/boom": "^10.0.1",
+    "argon2": "^0.40.3",
     "@prisma/client": "^5.15.0",
     "@qdrant/js-client-rest": "^1.9.0",
     "@whiskeysockets/baileys": "^6.7.0",
