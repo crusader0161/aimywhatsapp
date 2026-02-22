@@ -44,13 +44,19 @@ async function buildApp() {
   // Security
   await app.register(helmet, { contentSecurityPolicy: false })
 
-  // CORS
+  // CORS — allow origins from env or defaults
+  const corsOrigins = [
+    'http://localhost:3000',
+    'http://50.28.12.106:3000',
+    'http://aiwat.zedcode.ai',
+    'https://aiwat.zedcode.ai',
+    ...(process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+      : []
+    ),
+  ]
   await app.register(cors, {
-    origin: [
-      process.env.APP_URL || 'http://localhost:3000',
-      'http://localhost:3000',
-      'http://50.28.12.106:3000',
-    ],
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
