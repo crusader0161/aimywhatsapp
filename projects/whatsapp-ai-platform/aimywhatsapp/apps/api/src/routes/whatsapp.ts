@@ -19,6 +19,33 @@ export default async function whatsappRoutes(app: FastifyInstance) {
   // All routes require auth
   app.addHook('preHandler', authenticate)
 
+  // GET /whatsapp/accounts?workspaceId=<id> - alias for sessions filtered by workspace
+  app.get('/accounts', async (req: FastifyRequest, reply: FastifyReply) => {
+    const query = z.object({ workspaceId: z.string().optional() }).parse(req.query)
+    const user = req.user as { id: string }
+
+    if (query.workspaceId) {
+      // Verify workspace membership
+      const membership = await prisma.workspaceUser.findUnique({
+        where: { workspaceId_userId: { workspaceId: query.workspaceId, userId: user.id } },
+      })
+      if (!membership) return reply.code(403).send({ error: 'Forbidden' })
+
+      const sessions = await prisma.whatsappSession.findMany({
+        where: { workspaceId: query.workspaceId },
+      })
+      return reply.send(sessions)
+    }
+
+    // No workspaceId: return all sessions for user's workspaces
+    const userWorkspaces = await prisma.workspaceUser.findMany({ where: { userId: user.id } })
+    const workspaceIds = userWorkspaces.map((w) => w.workspaceId)
+    const sessions = await prisma.whatsappSession.findMany({
+      where: { workspaceId: { in: workspaceIds } },
+    })
+    return reply.send(sessions)
+  })
+
   // GET /whatsapp/sessions
   app.get('/sessions', async (req: FastifyRequest, reply: FastifyReply) => {
     const user = req.user as { id: string }

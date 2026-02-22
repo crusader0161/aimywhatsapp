@@ -49,6 +49,7 @@ async function buildApp() {
     origin: [
       process.env.APP_URL || 'http://localhost:3000',
       'http://localhost:3000',
+      'http://50.28.12.106:3000',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -87,6 +88,7 @@ async function buildApp() {
   await app.register(whatsappRoutes,     { prefix: `${API_PREFIX}/whatsapp` })
   await app.register(contactRoutes,      { prefix: `${API_PREFIX}/contacts` })
   await app.register(conversationRoutes, { prefix: `${API_PREFIX}/conversations` })
+  await app.register(knowledgeRoutes,    { prefix: `${API_PREFIX}/knowledge` })
   await app.register(knowledgeRoutes,    { prefix: `${API_PREFIX}/knowledge-bases` })
   await app.register(flowRoutes,         { prefix: `${API_PREFIX}/flows` })
   await app.register(broadcastRoutes,    { prefix: `${API_PREFIX}/broadcasts` })

@@ -12,6 +12,46 @@ const querySchema = z.object({
 export default async function analyticsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate)
 
+  // GET /analytics - root alias for overview
+  app.get('/', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { workspaceId, days } = querySchema.parse(req.query)
+    const since = subDays(new Date(), days)
+
+    const [
+      totalMessages,
+      totalContacts,
+      totalConversations,
+      openConversations,
+      resolvedConversations,
+      botMessages,
+      humanMessages,
+    ] = await Promise.all([
+      prisma.message.count({ where: { workspaceId, createdAt: { gte: since } } }),
+      prisma.contact.count({ where: { workspaceId, firstSeenAt: { gte: since } } }),
+      prisma.conversation.count({ where: { workspaceId, createdAt: { gte: since } } }),
+      prisma.conversation.count({ where: { workspaceId, status: 'OPEN' } }),
+      prisma.conversation.count({ where: { workspaceId, status: 'RESOLVED', resolvedAt: { gte: since } } }),
+      prisma.message.count({ where: { workspaceId, senderType: 'BOT', createdAt: { gte: since } } }),
+      prisma.message.count({ where: { workspaceId, senderType: 'HUMAN', createdAt: { gte: since } } }),
+    ])
+
+    const botResolutionRate = totalConversations > 0
+      ? Math.round((resolvedConversations / totalConversations) * 100)
+      : 0
+
+    return reply.send({
+      totalMessages,
+      totalContacts,
+      totalConversations,
+      openConversations,
+      resolvedConversations,
+      botMessages,
+      humanMessages,
+      botResolutionRate,
+      period: `${days} days`,
+    })
+  })
+
   // GET /analytics/overview
   app.get('/overview', async (req: FastifyRequest, reply: FastifyReply) => {
     const { workspaceId, days } = querySchema.parse(req.query)
