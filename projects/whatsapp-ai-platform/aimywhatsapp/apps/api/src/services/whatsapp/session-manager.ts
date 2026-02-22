@@ -123,8 +123,8 @@ export class WASessionManager {
           sessionInfo.qrCode = undefined
           sessionInfo.reconnectAttempts = 0
 
-          const phoneNumber = socket.user?.id?.split(':')[0] || undefined
-          const displayName = socket.user?.name || undefined
+          const phoneNumber = socket.user?.id?.split(':')[0] ?? undefined
+          const displayName = socket.user?.name ?? undefined
 
           await prisma.whatsappSession.update({
             where: { id: sessionId },
@@ -202,13 +202,13 @@ export class WASessionManager {
           if (update.receipt.receiptTimestamp) {
             await prisma.message.update({
               where: { waMessageId },
-              data: { deliveredAt: new Date(update.receipt.receiptTimestamp * 1000) },
+              data: { deliveredAt: new Date(Number(update.receipt.receiptTimestamp) * 1000) },
             })
           }
           if (update.receipt.readTimestamp) {
             await prisma.message.update({
               where: { waMessageId },
-              data: { readAt: new Date(update.receipt.readTimestamp * 1000) },
+              data: { readAt: new Date(Number(update.receipt.readTimestamp) * 1000) },
             })
           }
         }
@@ -254,6 +254,7 @@ export class WASessionManager {
     } else {
       result = await session.socket.sendMessage(jid, {
         document: mediaBuffer,
+        mimetype: 'application/octet-stream',
         fileName: filename || 'file',
         caption,
       })

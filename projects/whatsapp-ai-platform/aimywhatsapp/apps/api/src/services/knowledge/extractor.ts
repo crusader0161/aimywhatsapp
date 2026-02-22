@@ -1,13 +1,16 @@
 /**
  * Document content extractor
  * Handles PDF, DOCX, TXT, CSV, and URL content extraction
+ * Uses native Node 20 fetch (no got dependency needed)
  */
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
 
 export async function extractFromFile(filePath: string, fileType: string): Promise<string> {
   switch (fileType.toUpperCase()) {
     case 'PDF': {
       const { readFileSync } = await import('fs')
-      const pdfParse = (await import('pdf-parse')).default
       const buffer = readFileSync(filePath)
       const result = await pdfParse(buffer)
       return result.text
@@ -29,50 +32,43 @@ export async function extractFromFile(filePath: string, fileType: string): Promi
 }
 
 export async function extractFromUrl(url: string): Promise<string> {
-  const got = (await import('got')).default
-  const { load } = await import('cheerio')
-
-  const html = await got(url, {
-    timeout: { request: 15000 },
+  // Use native Node 20 fetch (no external dependency)
+  const res = await fetch(url, {
     headers: { 'User-Agent': 'Aimywhatsapp/1.0 (content indexer)' },
-  }).text()
+    signal: AbortSignal.timeout(15000),
+  })
 
-  const $ = load(html)
+  if (!res.ok) throw new Error(`Failed to fetch URL: ${res.status}`)
 
-  // Remove noise elements
-  $('nav, footer, header, script, style, iframe, .ad, .advertisement, .sidebar, .menu, .cookie-notice').remove()
+  const html = await res.text()
 
-  // Try to get main content
-  const mainContent =
-    $('main').text() ||
-    $('article').text() ||
-    $('#content').text() ||
-    $('[role="main"]').text() ||
-    $('body').text()
-
-  return mainContent
+  // Simple HTML to text extraction (no cheerio dependency in hot path)
+  const text = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
+    .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
+    .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
     .trim()
-    .slice(0, 100000) // Cap at 100k chars
+    .slice(0, 100000)
+
+  return text
 }
 
 export function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
-  const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || text.split(/\s+/)
   const chunks: string[] = []
-  let current = ''
-
-  for (const sentence of sentences) {
-    if ((current + ' ' + sentence).length > chunkSize && current.length > 0) {
-      chunks.push(current.trim())
-      // Overlap: keep last portion
-      const words = current.split(' ')
-      current = words.slice(-Math.floor(overlap / 5)).join(' ') + ' ' + sentence
-    } else {
-      current += ' ' + sentence
-    }
+  let start = 0
+  while (start < text.length) {
+    const end = Math.min(start + chunkSize, text.length)
+    chunks.push(text.slice(start, end))
+    start += chunkSize - overlap
   }
-
-  if (current.trim()) chunks.push(current.trim())
-  return chunks.filter(c => c.length > 20)
+  return chunks.filter(c => c.trim().length > 20)
 }

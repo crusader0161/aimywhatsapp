@@ -276,19 +276,21 @@ async function deliverWebhook(data: { webhookId: string; event: string; payload:
   const webhook = await prisma.webhook.findUnique({ where: { id: data.webhookId } })
   if (!webhook || !webhook.isActive) return
 
-  const { default: got } = await import('got')
   const body = JSON.stringify({ event: data.event, payload: data.payload, timestamp: Date.now() })
 
   try {
-    await got.post(webhook.url, {
-      body,
+    const res = await fetch(webhook.url, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Aimywhatsapp-Event': data.event,
         ...(webhook.secret ? { 'X-Aimywhatsapp-Signature': signWebhook(body, webhook.secret) } : {}),
       },
-      timeout: { request: 10000 },
+      body,
+      signal: AbortSignal.timeout(10000),
     })
+
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`)
 
     await prisma.webhook.update({
       where: { id: data.webhookId },
