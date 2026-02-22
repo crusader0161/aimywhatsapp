@@ -1,12 +1,11 @@
 import 'dotenv/config'
-import Fastify from 'fastify'
+import Fastify, { FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import jwt from '@fastify/jwt'
 import multipart from '@fastify/multipart'
 import rateLimit from '@fastify/rate-limit'
 import { Server } from 'socket.io'
-import { createServer } from 'http'
 
 import { prisma } from './db/prisma'
 import { redis } from './lib/redis'
@@ -25,6 +24,13 @@ import broadcastRoutes from './routes/broadcasts'
 import analyticsRoutes from './routes/analytics'
 import settingsRoutes from './routes/settings'
 
+// Extend FastifyInstance with socket.io
+declare module 'fastify' {
+  interface FastifyInstance {
+    io: Server
+  }
+}
+
 const PORT = Number(process.env.API_PORT) || 3001
 const HOST = '0.0.0.0'
 
@@ -32,16 +38,11 @@ async function buildApp() {
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'info',
-      transport: process.env.NODE_ENV === 'development'
-        ? { target: 'pino-pretty' }
-        : undefined,
     },
   })
 
   // Security
-  await app.register(helmet, {
-    contentSecurityPolicy: false, // handled by frontend
-  })
+  await app.register(helmet, { contentSecurityPolicy: false })
 
   // CORS
   await app.register(cors, {
@@ -67,9 +68,7 @@ async function buildApp() {
 
   // File uploads
   await app.register(multipart, {
-    limits: {
-      fileSize: 25 * 1024 * 1024, // 25MB
-    },
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
   })
 
   // Health check
@@ -81,26 +80,25 @@ async function buildApp() {
 
   // API routes
   const API_PREFIX = '/api/v1'
-  await app.register(authRoutes, { prefix: `${API_PREFIX}/auth` })
-  await app.register(workspaceRoutes, { prefix: `${API_PREFIX}/workspaces` })
-  await app.register(whatsappRoutes, { prefix: `${API_PREFIX}/whatsapp` })
-  await app.register(contactRoutes, { prefix: `${API_PREFIX}/contacts` })
+  await app.register(authRoutes,         { prefix: `${API_PREFIX}/auth` })
+  await app.register(workspaceRoutes,    { prefix: `${API_PREFIX}/workspaces` })
+  await app.register(whatsappRoutes,     { prefix: `${API_PREFIX}/whatsapp` })
+  await app.register(contactRoutes,      { prefix: `${API_PREFIX}/contacts` })
   await app.register(conversationRoutes, { prefix: `${API_PREFIX}/conversations` })
-  await app.register(knowledgeRoutes, { prefix: `${API_PREFIX}/knowledge-bases` })
-  await app.register(flowRoutes, { prefix: `${API_PREFIX}/flows` })
-  await app.register(broadcastRoutes, { prefix: `${API_PREFIX}/broadcasts` })
-  await app.register(analyticsRoutes, { prefix: `${API_PREFIX}/analytics` })
-  await app.register(settingsRoutes, { prefix: `${API_PREFIX}/settings` })
+  await app.register(knowledgeRoutes,    { prefix: `${API_PREFIX}/knowledge-bases` })
+  await app.register(flowRoutes,         { prefix: `${API_PREFIX}/flows` })
+  await app.register(broadcastRoutes,    { prefix: `${API_PREFIX}/broadcasts` })
+  await app.register(analyticsRoutes,    { prefix: `${API_PREFIX}/analytics` })
+  await app.register(settingsRoutes,     { prefix: `${API_PREFIX}/settings` })
 
   return app
 }
 
 async function start() {
   const fastify = await buildApp()
-  const httpServer = createServer(fastify.server)
 
-  // Socket.io
-  const io = new Server(httpServer, {
+  // Attach Socket.io directly to Fastify's HTTP server (correct pattern)
+  const io = new Server(fastify.server, {
     cors: {
       origin: process.env.APP_URL || 'http://localhost:3000',
       credentials: true,
@@ -109,8 +107,6 @@ async function start() {
   })
 
   setupSocketServer(io)
-
-  // Make io available in routes via decorators
   fastify.decorate('io', io)
 
   // Setup background job queues
@@ -120,10 +116,10 @@ async function start() {
   try {
     await fastify.listen({ port: PORT, host: HOST })
     console.log(`
-  ╔══════════════════════════════════════╗
-  ║     Aimywhatsapp API Server          ║
-  ║     Running on port ${PORT}             ║
-  ╚══════════════════════════════════════╝
+╔══════════════════════════════════════╗
+║     Aimywhatsapp API Server          ║
+║     Running on port ${PORT}             ║
+╚══════════════════════════════════════╝
     `)
   } catch (err) {
     fastify.log.error(err)
@@ -142,6 +138,6 @@ const gracefulShutdown = async (signal: string) => {
 }
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
-process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'))
 
 start()

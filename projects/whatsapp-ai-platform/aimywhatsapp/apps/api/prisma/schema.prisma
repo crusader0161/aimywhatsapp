@@ -463,8 +463,8 @@ model WorkspaceSettings {
   workspaceId              String   @unique
   botName                  String   @default("Aimy")
   botPersona               String?
-  aiProvider               String   @default("anthropic")
-  aiModel                  String   @default("claude-sonnet-4-5-20250514")
+  aiProvider               String   @default("openrouter")
+  aiModel                  String   @default("anthropic/claude-sonnet-4-5")
   aiTemperature            Float    @default(0.7)
   confidenceThreshold      Float    @default(0.6)
   defaultLanguage          String   @default("auto")

@@ -107,7 +107,7 @@ export class MessageRouter {
 
     // Emit to live monitor
     const manager = WASessionManager.getInstance()
-    ;(manager as any).emitToWorkspace?.(workspaceId, 'message:new', {
+    manager.emitToWorkspace(workspaceId, 'message:new', {
       message: savedMessage,
       conversation: { id: conversation.id, contactId: contact.id },
     })
@@ -231,7 +231,7 @@ export class MessageRouter {
       })
 
       // Emit outbound to monitor
-      ;(manager as any).emitToWorkspace?.(workspaceId, 'message:new', {
+      manager.emitToWorkspace(workspaceId, 'message:new', {
         message: outboundMessage,
         conversation: { id: conversation.id },
       })

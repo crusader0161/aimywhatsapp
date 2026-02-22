@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Required for @xyflow/react (uses ES modules)
+  transpilePackages: ['@xyflow/react'],
   images: {
     domains: ['localhost'],
   },

@@ -8,7 +8,7 @@ import { createHash } from 'crypto'
 const settingsSchema = z.object({
   botName: z.string().optional(),
   botPersona: z.string().optional(),
-  aiProvider: z.enum(['anthropic', 'openai']).optional(),
+  aiProvider: z.enum(['openrouter', 'anthropic', 'openai']).optional(),
   aiModel: z.string().optional(),
   aiTemperature: z.number().min(0).max(1).optional(),
   confidenceThreshold: z.number().min(0).max(1).optional(),

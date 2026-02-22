@@ -5,7 +5,6 @@ import {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   proto,
-  WAMessageKey,
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import { mkdirSync } from 'fs'
@@ -270,7 +269,7 @@ export class WASessionManager {
     this.sessions.delete(sessionId)
   }
 
-  private emitToWorkspace(workspaceId: string, event: string, data: unknown) {
+  emitToWorkspace(workspaceId: string, event: string, data: unknown) {
     if (this.io) {
       this.io.to(`workspace:${workspaceId}`).emit(event, data)
     }
