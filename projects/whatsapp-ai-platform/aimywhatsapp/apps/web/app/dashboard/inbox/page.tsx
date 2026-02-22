@@ -54,8 +54,8 @@ export default function InboxPage() {
 
   return (
     <div className="flex h-full">
-      {/* Left panel */}
-      <div className="w-80 flex flex-col border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+      {/* Left panel — full width on mobile, fixed 320px on desktop */}
+      <div className="w-full lg:w-80 flex flex-col border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
         {/* Search */}
         <div className="p-3 border-b border-gray-100 dark:border-gray-800">
           <div className="relative">
@@ -141,8 +141,8 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* Right panel: Select a conversation prompt */}
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      {/* Right panel: hidden on mobile, visible on desktop */}
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center text-gray-400">
           <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Search className="w-7 h-7 opacity-40" />

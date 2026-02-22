@@ -71,11 +71,12 @@ export default function ContactsPage() {
 
       {/* Table */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-900/50 text-left">
               {['Contact', 'Phone', 'Last Message', 'Auto-Reply', 'Status', 'Actions'].map(h => (
-                <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -153,6 +154,7 @@ export default function ContactsPage() {
             ))}
           </tbody>
         </table>
+        </div>{/* end overflow-x-auto */}
 
         {/* Pagination */}
         {data?.pagination && data.pagination.pages > 1 && (

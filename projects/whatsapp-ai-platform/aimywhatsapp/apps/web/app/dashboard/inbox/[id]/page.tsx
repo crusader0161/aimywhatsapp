@@ -6,8 +6,9 @@ import { getSocket } from '@/lib/socket'
 import { formatTime, cn } from '@/lib/utils'
 import {
   Send, Bot, User, UserX, RefreshCw, CheckCircle,
-  Image, Mic, FileText, ThumbsUp, ThumbsDown, MoreVertical
+  Image, Mic, FileText, ThumbsUp, ThumbsDown, MoreVertical, ArrowLeft
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -15,6 +16,7 @@ export default function ConversationPage({ params }: { params: { id: string } })
   const [message, setMessage] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const { data: conv, isLoading } = useQuery({
     queryKey: ['conversation', params.id],
@@ -91,9 +93,16 @@ export default function ConversationPage({ params }: { params: { id: string } })
       {/* Conversation thread */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Contact header */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3.5 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Back button — mobile only */}
+            <button
+              onClick={() => router.push('/dashboard/inbox')}
+              className="lg:hidden p-1.5 -ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
               <span className="text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
                 {(contact?.name || contact?.phoneNumber || '?')[0].toUpperCase()}
               </span>
