@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+.env
+*.env.local
+data/uploads/*
+data/wa-sessions/*
+!data/uploads/.gitkeep
+!data/wa-sessions/.gitkeep
+.turbo/
+*.log
+.DS_Store
+coverage/

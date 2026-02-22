@@ -1,0 +1,147 @@
+import 'dotenv/config'
+import Fastify from 'fastify'
+import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
+import jwt from '@fastify/jwt'
+import multipart from '@fastify/multipart'
+import rateLimit from '@fastify/rate-limit'
+import { Server } from 'socket.io'
+import { createServer } from 'http'
+
+import { prisma } from './db/prisma'
+import { redis } from './lib/redis'
+import { setupSocketServer } from './realtime/socket'
+import { setupQueues } from './jobs/queues'
+
+// Routes
+import authRoutes from './routes/auth'
+import workspaceRoutes from './routes/workspaces'
+import whatsappRoutes from './routes/whatsapp'
+import contactRoutes from './routes/contacts'
+import conversationRoutes from './routes/conversations'
+import knowledgeRoutes from './routes/knowledge'
+import flowRoutes from './routes/flows'
+import broadcastRoutes from './routes/broadcasts'
+import analyticsRoutes from './routes/analytics'
+import settingsRoutes from './routes/settings'
+
+const PORT = Number(process.env.API_PORT) || 3001
+const HOST = '0.0.0.0'
+
+async function buildApp() {
+  const app = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL || 'info',
+      transport: process.env.NODE_ENV === 'development'
+        ? { target: 'pino-pretty' }
+        : undefined,
+    },
+  })
+
+  // Security
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // handled by frontend
+  })
+
+  // CORS
+  await app.register(cors, {
+    origin: [
+      process.env.APP_URL || 'http://localhost:3000',
+      'http://localhost:3000',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
+
+  // Rate limiting
+  await app.register(rateLimit, {
+    max: Number(process.env.RATE_LIMIT_MAX) || 200,
+    timeWindow: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
+    redis,
+  })
+
+  // JWT
+  await app.register(jwt, {
+    secret: process.env.JWT_ACCESS_SECRET!,
+  })
+
+  // File uploads
+  await app.register(multipart, {
+    limits: {
+      fileSize: 25 * 1024 * 1024, // 25MB
+    },
+  })
+
+  // Health check
+  app.get('/health', async () => ({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '0.1.0',
+  }))
+
+  // API routes
+  const API_PREFIX = '/api/v1'
+  await app.register(authRoutes, { prefix: `${API_PREFIX}/auth` })
+  await app.register(workspaceRoutes, { prefix: `${API_PREFIX}/workspaces` })
+  await app.register(whatsappRoutes, { prefix: `${API_PREFIX}/whatsapp` })
+  await app.register(contactRoutes, { prefix: `${API_PREFIX}/contacts` })
+  await app.register(conversationRoutes, { prefix: `${API_PREFIX}/conversations` })
+  await app.register(knowledgeRoutes, { prefix: `${API_PREFIX}/knowledge-bases` })
+  await app.register(flowRoutes, { prefix: `${API_PREFIX}/flows` })
+  await app.register(broadcastRoutes, { prefix: `${API_PREFIX}/broadcasts` })
+  await app.register(analyticsRoutes, { prefix: `${API_PREFIX}/analytics` })
+  await app.register(settingsRoutes, { prefix: `${API_PREFIX}/settings` })
+
+  return app
+}
+
+async function start() {
+  const fastify = await buildApp()
+  const httpServer = createServer(fastify.server)
+
+  // Socket.io
+  const io = new Server(httpServer, {
+    cors: {
+      origin: process.env.APP_URL || 'http://localhost:3000',
+      credentials: true,
+    },
+    path: '/ws',
+  })
+
+  setupSocketServer(io)
+
+  // Make io available in routes via decorators
+  fastify.decorate('io', io)
+
+  // Setup background job queues
+  await setupQueues()
+
+  // Start listening
+  try {
+    await fastify.listen({ port: PORT, host: HOST })
+    console.log(`
+  ╔══════════════════════════════════════╗
+  ║     Aimywhatsapp API Server          ║
+  ║     Running on port ${PORT}             ║
+  ╚══════════════════════════════════════╝
+    `)
+  } catch (err) {
+    fastify.log.error(err)
+    await prisma.$disconnect()
+    await redis.quit()
+    process.exit(1)
+  }
+}
+
+// Graceful shutdown
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`)
+  await prisma.$disconnect()
+  await redis.quit()
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+
+start()

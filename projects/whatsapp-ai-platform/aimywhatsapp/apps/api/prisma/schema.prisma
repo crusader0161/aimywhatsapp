@@ -1,0 +1,509 @@
+// Aimywhatsapp - Prisma Schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// AUTH & TENANCY
+// =====================
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             WorkspaceUser[]
+  whatsappSessions  WhatsappSession[]
+  contacts          Contact[]
+  conversations     Conversation[]
+  messages          Message[]
+  knowledgeBases    KnowledgeBase[]
+  flows             Flow[]
+  broadcasts        Broadcast[]
+  apiKeys           ApiKey[]
+  webhooks          Webhook[]
+  settings          WorkspaceSettings?
+  auditLogs         AuditLog[]
+  labels            Label[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+
+  workspaces WorkspaceUser[]
+  sessions   UserSession[]
+}
+
+model WorkspaceUser {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        UserRole @default(AGENT)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  AGENT
+  VIEWER
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  keyHash     String    @unique
+  keyPreview  String
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// WHATSAPP
+// =====================
+
+model WhatsappSession {
+  id          String        @id @default(cuid())
+  workspaceId String
+  accountId   String        @default("default")
+  phoneNumber String?
+  displayName String?
+  status      SessionStatus @default(DISCONNECTED)
+  credsPath   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts      Contact[]
+  conversations Conversation[]
+
+  @@unique([workspaceId, accountId])
+}
+
+enum SessionStatus {
+  DISCONNECTED
+  CONNECTING
+  QR_READY
+  CONNECTED
+  BANNED
+  ERROR
+}
+
+// =====================
+// CONTACTS & CRM
+// =====================
+
+model Contact {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  sessionId        String
+  jid              String
+  phoneNumber      String
+  name             String?
+  displayName      String?
+  profilePicUrl    String?
+  about            String?
+  autoreplyEnabled Boolean   @default(true)
+  humanTakeover    Boolean   @default(false)
+  approvalMode     Boolean   @default(false)
+  isBlocked        Boolean   @default(false)
+  isVip            Boolean   @default(false)
+  language         String?
+  notes            String?
+  firstSeenAt      DateTime  @default(now())
+  lastMessageAt    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session       WhatsappSession     @relation(fields: [sessionId], references: [id])
+  labels        ContactLabel[]
+  conversations Conversation[]
+  customFields  ContactCustomField[]
+
+  @@unique([workspaceId, jid])
+}
+
+model Label {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String   @default("#6366f1")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  ContactLabel[]
+
+  @@unique([workspaceId, name])
+}
+
+model ContactLabel {
+  contactId String
+  labelId   String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  label   Label   @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, labelId])
+}
+
+model ContactCustomField {
+  id        String @id @default(cuid())
+  contactId String
+  key       String
+  value     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, key])
+}
+
+// =====================
+// CONVERSATIONS & MESSAGES
+// =====================
+
+model Conversation {
+  id             String             @id @default(cuid())
+  workspaceId    String
+  sessionId      String
+  contactId      String
+  status         ConversationStatus @default(OPEN)
+  assignedUserId String?
+  resolvedAt     DateTime?
+  lastMessageAt  DateTime?
+  unreadCount    Int                @default(0)
+  sentiment      Sentiment?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session   WhatsappSession @relation(fields: [sessionId], references: [id])
+  contact   Contact         @relation(fields: [contactId], references: [id])
+  messages  Message[]
+}
+
+enum ConversationStatus {
+  OPEN
+  RESOLVED
+  WAITING_HUMAN
+  PENDING_APPROVAL
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+model Message {
+  id              String     @id @default(cuid())
+  workspaceId     String
+  conversationId  String
+  waMessageId     String?    @unique
+  direction       Direction
+  senderType      SenderType
+  senderUserId    String?
+  content         String
+  mediaType       MediaType?
+  mediaUrl        String?
+  mediaCaption    String?
+  mediaTranscript String?
+  replyToId       String?
+  sentiment       Sentiment?
+  confidence      Float?
+  kbChunksUsed    String[]
+  flowId          String?
+  isApproved      Boolean?
+  isRead          Boolean    @default(false)
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  createdAt       DateTime   @default(now())
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum SenderType {
+  CONTACT
+  BOT
+  HUMAN
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+  LOCATION
+  CONTACT_CARD
+}
+
+// =====================
+// KNOWLEDGE BASE
+// =====================
+
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents KBDocument[]
+  faqs      KBFaq[]
+}
+
+model KBDocument {
+  id              String        @id @default(cuid())
+  knowledgeBaseId String
+  name            String
+  type            KBDocType
+  sourceUrl       String?
+  filePath        String?
+  content         String?
+  status          IndexStatus   @default(PENDING)
+  chunkCount      Int           @default(0)
+  errorMessage    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  chunks        KBChunk[]
+}
+
+enum KBDocType {
+  PDF
+  DOCX
+  TXT
+  CSV
+  URL
+  MANUAL
+}
+
+enum IndexStatus {
+  PENDING
+  PROCESSING
+  INDEXED
+  FAILED
+}
+
+model KBChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String
+  qdrantId   String   @unique
+  chunkIndex Int
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  document KBDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model KBFaq {
+  id              String   @id @default(cuid())
+  knowledgeBaseId String
+  question        String
+  answer          String
+  qdrantId        String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// FLOWS
+// =====================
+
+model Flow {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String?
+  isActive      Boolean     @default(true)
+  triggerType   FlowTrigger
+  triggerConfig Json
+  nodes         Json
+  edges         Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stats     FlowStats?
+}
+
+enum FlowTrigger {
+  FIRST_MESSAGE
+  KEYWORD
+  LABEL_ADDED
+  INBOUND_MEDIA
+  SCHEDULED
+  API
+}
+
+model FlowStats {
+  id             String    @id @default(cuid())
+  flowId         String    @unique
+  totalEntered   Int       @default(0)
+  totalCompleted Int       @default(0)
+  lastRunAt      DateTime?
+
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// BROADCASTS
+// =====================
+
+model Broadcast {
+  id          String          @id @default(cuid())
+  workspaceId String
+  name        String
+  message     String
+  mediaUrl    String?
+  targetType  BroadcastTarget
+  labelIds    String[]
+  contactIds  String[]
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  status      BroadcastStatus @default(DRAFT)
+  stats       Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients BroadcastRecipient[]
+}
+
+enum BroadcastTarget {
+  ALL
+  LABEL
+  CONTACTS
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+model BroadcastRecipient {
+  id          String    @id @default(cuid())
+  broadcastId String
+  contactId   String
+  status      String    @default("pending")
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// SETTINGS & WEBHOOKS
+// =====================
+
+model WorkspaceSettings {
+  id                       String   @id @default(cuid())
+  workspaceId              String   @unique
+  botName                  String   @default("Aimy")
+  botPersona               String?
+  aiProvider               String   @default("anthropic")
+  aiModel                  String   @default("claude-sonnet-4-5-20250514")
+  aiTemperature            Float    @default(0.7)
+  confidenceThreshold      Float    @default(0.6)
+  defaultLanguage          String   @default("auto")
+  businessHoursEnabled     Boolean  @default(false)
+  businessHoursConfig      Json?
+  awayMessage              String?
+  welcomeMessage           String?
+  humanEscalationMessage   String?
+  maxConversationHistory   Int      @default(20)
+  updatedAt                DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Webhook {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  name         String
+  url          String
+  secret       String?
+  events       String[]
+  isActive     Boolean   @default(true)
+  lastCalledAt DateTime?
+  failureCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  action      String
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
