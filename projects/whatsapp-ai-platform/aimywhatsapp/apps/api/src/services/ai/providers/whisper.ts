@@ -1,23 +1,9 @@
-import OpenAI from 'openai'
-import { writeFileSync, unlinkSync } from 'fs'
-import { join } from 'path'
-import { nanoid } from 'nanoid'
-import { tmpdir } from 'os'
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-export async function transcribeAudio(buffer: Buffer): Promise<string> {
-  // Write buffer to temp file (Whisper needs a file)
-  const tempPath = join(tmpdir(), `audio_${nanoid()}.ogg`)
-  writeFileSync(tempPath, buffer)
-
-  try {
-    const response = await openai.audio.transcriptions.create({
-      file: new File([buffer], 'audio.ogg', { type: 'audio/ogg' }),
-      model: 'whisper-1',
-    })
-    return response.text
-  } finally {
-    try { unlinkSync(tempPath) } catch {}
-  }
+/**
+ * Audio transcription stub
+ * Whisper requires OpenAI API key which is not configured.
+ * Returns a placeholder — upgrade by adding OPENAI_API_KEY to .env
+ */
+export async function transcribeAudio(_buffer: Buffer): Promise<string> {
+  // TODO: integrate OpenAI Whisper or Groq Whisper when key is available
+  return '[Audio message received — voice transcription not enabled]'
 }

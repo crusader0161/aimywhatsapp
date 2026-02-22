@@ -5,7 +5,7 @@ export const qdrant = new QdrantClient({
   apiKey: process.env.QDRANT_API_KEY,
 })
 
-export const VECTOR_SIZE = 1536 // OpenAI text-embedding-3-small
+export const VECTOR_SIZE = 1024 // Jina AI jina-embeddings-v3
 
 export function collectionName(knowledgeBaseId: string): string {
   return `aimy_kb_${knowledgeBaseId}`

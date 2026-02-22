@@ -1,12 +1,24 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { Contact, WorkspaceSettings } from '@prisma/client'
 import { prisma } from '../../db/prisma'
 import { searchSimilar } from '../../lib/qdrant'
 import { getEmbedding } from './providers/embeddings'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+/**
+ * AI Engine — powered by OpenRouter (claude-sonnet-4-5 via OpenAI-compatible API)
+ * Embeddings — Jina AI (jina-embeddings-v3, 1024 dims)
+ */
+const openrouter = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY!,
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+    'X-Title': 'Aimywhatsapp',
+  },
 })
+
+// Default model — OpenRouter model ID format
+const DEFAULT_MODEL = 'anthropic/claude-sonnet-4-5'
 
 export interface AIEngineInput {
   workspaceId: string
@@ -29,17 +41,9 @@ export interface AIEngineOutput {
 
 export class AIEngine {
   static async generate(input: AIEngineInput): Promise<AIEngineOutput> {
-    const {
-      workspaceId,
-      contact,
-      text,
-      mediaType,
-      mediaBuffer,
-      conversationId,
-      settings,
-    } = input
+    const { workspaceId, contact, text, mediaType, mediaBuffer, conversationId, settings } = input
 
-    // 1. Get conversation history
+    // 1. Conversation history
     const history = await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
@@ -47,7 +51,7 @@ export class AIEngine {
     })
     history.reverse()
 
-    // 2. Get KB context via RAG
+    // 2. RAG — knowledge base context
     let kbContext = ''
     const kbChunksUsed: string[] = []
 
@@ -60,11 +64,8 @@ export class AIEngine {
         try {
           const queryEmbedding = await getEmbedding(text)
           const results = await searchSimilar(defaultKB.id, queryEmbedding, 5, 0.7)
-
           if (results.length > 0) {
-            kbContext = results
-              .map((r, i) => `[Source ${i + 1}]: ${r.payload.content}`)
-              .join('\n\n')
+            kbContext = results.map((r, i) => `[Source ${i + 1}]: ${r.payload.content}`).join('\n\n')
             kbChunksUsed.push(...results.map((r) => r.payload.chunkId))
           }
         } catch (err) {
@@ -73,27 +74,26 @@ export class AIEngine {
       }
     }
 
-    // 3. Handle media via vision
+    // 3. Handle media
     let mediaContext = ''
     let imageBase64: string | undefined
+    let imageMimeType: string = 'image/jpeg'
 
     if (mediaType === 'IMAGE' && mediaBuffer) {
       imageBase64 = mediaBuffer.toString('base64')
     } else if (mediaType === 'AUDIO' && mediaBuffer) {
-      // Transcribe audio using OpenAI Whisper
       try {
         const { transcribeAudio } = await import('./providers/whisper')
         const transcript = await transcribeAudio(mediaBuffer)
-        mediaContext = `[Voice message transcription]: "${transcript}"\n`
-      } catch (err) {
-        console.error('Audio transcription error:', err)
-        mediaContext = '[Voice message - unable to transcribe]\n'
+        mediaContext = `[Voice message]: "${transcript}"\n`
+      } catch {
+        mediaContext = '[Voice message received]\n'
       }
-    } else if (mediaType === 'DOCUMENT' && mediaBuffer) {
-      mediaContext = '[Document attached - please describe what you need help with]\n'
+    } else if (mediaType === 'DOCUMENT') {
+      mediaContext = '[Document attached — please describe what you need help with]\n'
     }
 
-    // 4. Build system prompt
+    // 4. System prompt
     const systemPrompt = buildSystemPrompt({
       botName: settings.botName,
       persona: settings.botPersona || '',
@@ -102,10 +102,12 @@ export class AIEngine {
       language: contact.language || settings.defaultLanguage,
     })
 
-    // 5. Build message array for Claude
-    const messages: Anthropic.MessageParam[] = []
+    // 5. Build OpenAI-format messages (OpenRouter compatible)
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+    ]
 
-    // Add conversation history
+    // History (last 10 messages)
     for (const msg of history.slice(-10)) {
       if (msg.direction === 'INBOUND') {
         messages.push({ role: 'user', content: msg.content || '[media message]' })
@@ -114,58 +116,42 @@ export class AIEngine {
       }
     }
 
-    // Add current message
-    const currentContent: Anthropic.ContentBlockParam[] = []
+    // Current message — support image via vision
+    const userText = [mediaContext, text].filter(Boolean).join('\n') || '[media message]'
 
     if (imageBase64) {
-      currentContent.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: 'image/jpeg',
-          data: imageBase64,
-        },
+      messages.push({
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: `data:${imageMimeType};base64,${imageBase64}` },
+          },
+          { type: 'text', text: userText },
+        ],
       })
-    }
-
-    const userText = [mediaContext, text].filter(Boolean).join('\n')
-    if (userText) {
-      currentContent.push({ type: 'text', text: userText })
-    }
-
-    if (currentContent.length === 0) {
-      currentContent.push({ type: 'text', text: '[media message]' })
-    }
-
-    // Ensure messages alternate correctly
-    if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
-      // Replace last user message to avoid consecutive user messages
-      messages[messages.length - 1] = { role: 'user', content: currentContent }
     } else {
-      messages.push({ role: 'user', content: currentContent })
+      messages.push({ role: 'user', content: userText })
     }
 
-    // 6. Call Claude API
+    // 6. Call OpenRouter
     let reply = ''
     try {
-      const response = await anthropic.messages.create({
-        model: settings.aiModel || 'claude-sonnet-4-5-20250514',
+      // Map old Anthropic model ID to OpenRouter format
+      const modelId = mapModelId(settings.aiModel || DEFAULT_MODEL)
+
+      const completion = await openrouter.chat.completions.create({
+        model: modelId,
         max_tokens: 1024,
-        temperature: settings.aiTemperature,
-        system: systemPrompt,
+        temperature: settings.aiTemperature ?? 0.7,
         messages,
       })
 
-      reply = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('')
-        .trim()
+      reply = completion.choices[0]?.message?.content?.trim() || ''
     } catch (err: any) {
-      console.error('Claude API error:', err)
-      reply = "I'm having trouble responding right now. Please try again in a moment."
+      console.error('OpenRouter AI error:', err?.message || err)
       return {
-        reply,
+        reply: "I'm having trouble responding right now. Please try again in a moment.",
         confidence: 0,
         kbChunksUsed: [],
         shouldEscalate: true,
@@ -173,25 +159,29 @@ export class AIEngine {
       }
     }
 
-    // 7. Confidence scoring (quick heuristic)
+    // 7. Scoring + escalation
     const confidence = estimateConfidence(reply, kbContext, text)
-
-    // 8. Escalation check
     const shouldEscalate =
-      confidence < (settings.confidenceThreshold || 0.6) ||
-      containsEscalationKeywords(text)
-
-    // 9. Sentiment detection (simple)
+      confidence < (settings.confidenceThreshold || 0.6) || containsEscalationKeywords(text)
     const sentiment = detectSentiment(text)
 
-    return {
-      reply,
-      confidence,
-      kbChunksUsed,
-      shouldEscalate,
-      sentiment,
-    }
+    return { reply, confidence, kbChunksUsed, shouldEscalate, sentiment }
   }
+}
+
+/** Map Anthropic model IDs to OpenRouter equivalents */
+function mapModelId(model: string): string {
+  const map: Record<string, string> = {
+    'claude-sonnet-4-5-20250514': 'anthropic/claude-sonnet-4-5',
+    'claude-sonnet-4-5': 'anthropic/claude-sonnet-4-5',
+    'claude-opus-4-5': 'anthropic/claude-opus-4-5',
+    'claude-haiku-4-5': 'anthropic/claude-haiku-4-5',
+    'claude-3.5-sonnet': 'anthropic/claude-3.5-sonnet',
+    'claude-3.5-haiku': 'anthropic/claude-3.5-haiku',
+  }
+  // If already an OpenRouter ID (contains /), return as-is
+  if (model.includes('/')) return model
+  return map[model] || DEFAULT_MODEL
 }
 
 function buildSystemPrompt(opts: {
@@ -215,7 +205,9 @@ function buildSystemPrompt(opts: {
   }
 
   if (opts.kbContext) {
-    parts.push(`\nUse the following knowledge base to answer questions. Only use information from this context. If the answer is not in the knowledge base, say you don't have that information and offer to connect them with a human agent.\n\n--- KNOWLEDGE BASE ---\n${opts.kbContext}\n--- END KNOWLEDGE BASE ---`)
+    parts.push(
+      `\nUse the following knowledge base to answer questions. Only use information from this context. If the answer is not in the knowledge base, say you don't have that information and offer to connect them with a human agent.\n\n--- KNOWLEDGE BASE ---\n${opts.kbContext}\n--- END KNOWLEDGE BASE ---`
+    )
   }
 
   parts.push(`\nGuidelines:
@@ -223,19 +215,18 @@ function buildSystemPrompt(opts: {
 - Be helpful, friendly, and professional
 - Never make up information not in the knowledge base
 - For complaints, refunds, or sensitive issues, offer to connect with a human agent
-- Do not use markdown formatting (no **bold**, no bullet points with -, use plain text)
-- Use emojis sparingly and only when appropriate`)
+- Do not use markdown formatting (no **bold**, no bullet points with -)
+- Use plain text only; use emojis sparingly`)
 
   return parts.join('\n')
 }
 
 function estimateConfidence(reply: string, kbContext: string, query: string): number {
   if (!reply || reply.length < 10) return 0.1
-  if (reply.toLowerCase().includes("don't have") || reply.toLowerCase().includes("not sure")) return 0.4
+  if (reply.toLowerCase().includes("don't have") || reply.toLowerCase().includes('not sure')) return 0.4
   if (reply.toLowerCase().includes('human agent') || reply.toLowerCase().includes('connect you')) return 0.3
   if (kbContext && kbContext.length > 100) return 0.85
-  if (!kbContext) return 0.65
-  return 0.75
+  return 0.65
 }
 
 function containsEscalationKeywords(text: string): boolean {
@@ -248,10 +239,8 @@ function detectSentiment(text: string): string {
   const lower = text.toLowerCase()
   const positive = ['thank', 'great', 'awesome', 'love', 'perfect', 'excellent', 'good', 'happy', 'pleased']
   const negative = ['angry', 'frustrated', 'terrible', 'awful', 'hate', 'worst', 'useless', 'bad', 'disappointed', 'upset']
-
   const posScore = positive.filter((w) => lower.includes(w)).length
   const negScore = negative.filter((w) => lower.includes(w)).length
-
   if (negScore > posScore) return 'NEGATIVE'
   if (posScore > negScore) return 'POSITIVE'
   return 'NEUTRAL'
