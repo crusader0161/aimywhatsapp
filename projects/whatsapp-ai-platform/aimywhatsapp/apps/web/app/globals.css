@@ -71,3 +71,21 @@
 
 /* Connection status pulse */
 .status-connected { @apply animate-pulse-green; }
+
+/* Mobile safe area support (iOS notch / home bar) */
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Better tap targets on mobile */
+@media (max-width: 1024px) {
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Prevent text size adjust on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}

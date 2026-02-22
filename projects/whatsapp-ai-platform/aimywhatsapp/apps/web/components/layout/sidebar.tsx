@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   MessageSquare, Users, Brain, GitBranch,
   Megaphone, BarChart2, Settings, LogOut,
-  Wifi, WifiOff, ChevronDown
+  Wifi, WifiOff, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -23,7 +23,12 @@ const navItems = [
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { currentWorkspace } = useWorkspaceStore()
   const { user, logout } = useAuthStore()
@@ -36,18 +41,29 @@ export function Sidebar() {
 
   const connected = sessions?.some((s: any) => s.status === 'CONNECTED')
 
-  return (
-    <aside className="w-60 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 h-screen">
+  const sidebarContent = (
+    <aside className="w-64 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 h-full">
       {/* Logo */}
       <div className="p-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-whatsapp rounded-lg flex items-center justify-center flex-shrink-0">
-            <MessageSquare className="w-4 h-4 text-white" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-whatsapp rounded-lg flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight truncate">Aimywhatsapp</p>
+              <p className="text-xs text-gray-400 truncate">{currentWorkspace?.name}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="font-bold text-gray-900 dark:text-white text-sm leading-tight truncate">Aimywhatsapp</p>
-            <p className="text-xs text-gray-400 truncate">{currentWorkspace?.name}</p>
-          </div>
+          {/* Close button (mobile only) */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* WA status indicator */}
@@ -67,14 +83,12 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon, exact }) => {
-          const active = exact ? pathname === href : pathname.startsWith(href) && href !== '/dashboard'
-            || (exact && pathname === href)
           const isActive = exact ? pathname === href : pathname.startsWith(href)
-
           return (
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 isActive
@@ -111,5 +125,73 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  )
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible on lg+ */}
+      <div className="hidden lg:flex h-screen flex-shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile drawer */}
+      {open !== undefined && (
+        <>
+          {/* Backdrop */}
+          <div
+            className={cn(
+              'fixed inset-0 z-40 bg-black/50 lg:hidden transition-opacity duration-200',
+              open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            )}
+            onClick={onClose}
+          />
+          {/* Drawer */}
+          <div
+            className={cn(
+              'fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-200 ease-in-out',
+              open ? 'translate-x-0' : '-translate-x-full'
+            )}
+          >
+            {sidebarContent}
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
+// Bottom nav for mobile (shown on small screens)
+export function BottomNav() {
+  const pathname = usePathname()
+
+  const bottomItems = [
+    { href: '/dashboard', label: 'Home', icon: BarChart2, exact: true },
+    { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare },
+    { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
+    { href: '/dashboard/knowledge', label: 'Knowledge', icon: Brain },
+    { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  ]
+
+  return (
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex items-center justify-around h-16 px-2 safe-area-pb">
+      {bottomItems.map(({ href, label, icon: Icon, exact }) => {
+        const isActive = exact ? pathname === href : pathname.startsWith(href)
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-w-0',
+              isActive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-gray-400 dark:text-gray-500'
+            )}
+          >
+            <Icon className={cn('w-5 h-5', isActive && 'text-emerald-600 dark:text-emerald-400')} />
+            <span className="truncate text-[10px]">{label}</span>
+          </Link>
+        )
+      })}
+    </nav>
   )
 }
