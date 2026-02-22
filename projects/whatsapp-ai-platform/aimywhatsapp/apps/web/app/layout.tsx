@@ -10,7 +10,12 @@ export const metadata: Metadata = {
   title: 'Aimywhatsapp — WhatsApp AI Platform',
   description: 'Automate your WhatsApp with AI. Knowledge base, multimodal, real-time monitoring.',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/favicon.svg',
   },
 }
 
