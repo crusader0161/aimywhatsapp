@@ -123,8 +123,8 @@ export class WASessionManager {
           sessionInfo.qrCode = undefined
           sessionInfo.reconnectAttempts = 0
 
-          const phoneNumber = socket.user?.id?.split(':')[0] ?? undefined
-          const displayName = socket.user?.name ?? undefined
+          const phoneNumber: string | undefined = socket.user?.id?.split(':')[0] || undefined
+          const displayName: string | undefined = socket.user?.name || undefined
 
           await prisma.whatsappSession.update({
             where: { id: sessionId },

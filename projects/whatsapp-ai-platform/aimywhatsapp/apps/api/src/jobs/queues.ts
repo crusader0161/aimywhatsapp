@@ -80,19 +80,27 @@ async function processDocument(documentId: string) {
     let content = ''
 
     if (doc.type === 'URL' && doc.sourceUrl) {
-      const { load } = await import('cheerio')
-      const got = (await import('got')).default
-      const html = await got(doc.sourceUrl).text()
-      const $ = load(html)
-      $('nav, footer, script, style, header').remove()
-      content = $('body').text().replace(/\s+/g, ' ').trim()
+      // Use native fetch (Node 20+)
+      const res = await fetch(doc.sourceUrl, {
+        headers: { 'User-Agent': 'Aimywhatsapp/1.0' },
+        signal: AbortSignal.timeout(15000),
+      })
+      const html = await res.text()
+      content = html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 100000)
     } else if (doc.filePath) {
       const { readFileSync } = await import('fs')
       const { getFullPath } = await import('../lib/storage')
       const fullPath = getFullPath(doc.filePath)
 
       if (doc.type === 'PDF') {
-        const pdfParse = (await import('pdf-parse')).default
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const pdfParse = require('pdf-parse') as (b: Buffer) => Promise<{ text: string }>
         const buffer = readFileSync(fullPath)
         const parsed = await pdfParse(buffer)
         content = parsed.text

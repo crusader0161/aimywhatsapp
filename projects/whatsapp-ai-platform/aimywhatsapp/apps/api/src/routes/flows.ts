@@ -27,7 +27,7 @@ export default async function flowRoutes(app: FastifyInstance) {
       edges: z.any().default([]),
     }).parse(req.body)
 
-    const flow = await prisma.flow.create({ data: body })
+    const flow = await prisma.flow.create({ data: body as any })
     return reply.code(201).send(flow)
   })
 
@@ -49,7 +49,7 @@ export default async function flowRoutes(app: FastifyInstance) {
       triggerConfig: z.any().optional(),
     }).parse(req.body)
 
-    const flow = await prisma.flow.update({ where: { id: req.params.id }, data: body })
+    const flow = await prisma.flow.update({ where: { id: req.params.id }, data: body as any })
     return reply.send(flow)
   })
 
