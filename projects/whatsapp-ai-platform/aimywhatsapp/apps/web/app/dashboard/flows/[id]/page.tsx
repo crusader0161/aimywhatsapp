@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import {
   ReactFlow, Background, Controls, MiniMap,
   addEdge, useNodesState, useEdgesState,
-  type Connection, type Edge, type Node,
+  type Connection, type Edge, type Node, type EdgeChange,
   Panel, MarkerType,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -52,8 +52,8 @@ const customNodeTypes = { custom: FlowNode }
 
 export default function FlowBuilderPage({ params }: { params: { id: string } }) {
   const queryClient = useQueryClient()
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [nodeLabel, setNodeLabel] = useState('')
   const [nodeConfig, setNodeConfig] = useState('')
@@ -77,11 +77,15 @@ export default function FlowBuilderPage({ params }: { params: { id: string } }) 
   })
 
   const onConnect = useCallback(
-    (connection: Connection) => setEdges(eds => addEdge({
-      ...connection,
-      markerEnd: { type: MarkerType.ArrowClosed },
-      style: { strokeWidth: 2 },
-    }, eds)),
+    (connection: Connection) => {
+      const newEdge: Edge = {
+        ...connection,
+        id: `e-${connection.source}-${connection.target}`,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { strokeWidth: 2 },
+      }
+      setEdges(eds => addEdge(newEdge, eds))
+    },
     [setEdges]
   )
 
