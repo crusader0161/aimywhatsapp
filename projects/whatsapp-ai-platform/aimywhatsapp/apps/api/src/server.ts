@@ -54,11 +54,13 @@ async function buildApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 
-  // Rate limiting
+  // Rate limiting (skip health check)
   await app.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX) || 200,
     timeWindow: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
     redis,
+    allowList: ['127.0.0.1', '::1'],
+    skipOnError: true, // Don't fail requests if Redis is down
   })
 
   // JWT
