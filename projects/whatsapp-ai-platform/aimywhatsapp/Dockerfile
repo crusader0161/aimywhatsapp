@@ -1,5 +1,5 @@
-FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat python3 make g++
+FROM node:20-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install dependencies
@@ -25,8 +25,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd apps/web && npm run build
 
 # Production image
-FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
