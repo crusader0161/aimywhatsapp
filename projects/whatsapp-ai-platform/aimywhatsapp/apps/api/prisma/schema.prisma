@@ -152,6 +152,7 @@ model Contact {
   approvalMode     Boolean   @default(false)
   isBlocked        Boolean   @default(false)
   isVip            Boolean   @default(false)
+  isManuallyAdded  Boolean   @default(false)
   language         String?
   notes            String?
   firstSeenAt      DateTime  @default(now())
@@ -468,6 +469,7 @@ model WorkspaceSettings {
   aiTemperature            Float    @default(0.7)
   confidenceThreshold      Float    @default(0.6)
   defaultLanguage          String   @default("auto")
+  autoreplyMode            String   @default("EVERYONE")
   businessHoursEnabled     Boolean  @default(false)
   businessHoursConfig      Json?
   awayMessage              String?

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { toast } from 'sonner'
-import { Bot, Sliders, Clock, MessageSquare, Save } from 'lucide-react'
+import { Bot, Sliders, Clock, MessageSquare, Save, Users } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -32,6 +32,7 @@ export default function SettingsPage() {
     aiTemperature: 0.7,
     confidenceThreshold: 0.6,
     defaultLanguage: 'auto',
+    autoreplyMode: 'EVERYONE' as 'EVERYONE' | 'CONTACTS_ONLY',
     welcomeMessage: '',
     awayMessage: '',
     humanEscalationMessage: '',
@@ -48,6 +49,7 @@ export default function SettingsPage() {
         aiTemperature: settings.aiTemperature ?? 0.7,
         confidenceThreshold: settings.confidenceThreshold ?? 0.6,
         defaultLanguage: settings.defaultLanguage || 'auto',
+        autoreplyMode: settings.autoreplyMode || 'EVERYONE',
         welcomeMessage: settings.welcomeMessage || '',
         awayMessage: settings.awayMessage || '',
         humanEscalationMessage: settings.humanEscalationMessage || '',
@@ -141,6 +143,65 @@ export default function SettingsPage() {
             className="w-full px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-whatsapp resize-none"
           />
         </div>
+      </div>
+
+      {/* Autoreply Targeting */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-9 h-9 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+            <Users className="w-4 h-4 text-orange-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Autoreply Targeting</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Choose who the AI should auto-reply to</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {[
+            {
+              value: 'EVERYONE',
+              label: 'Reply to Everyone',
+              desc: 'AI replies to any incoming WhatsApp message, including unknown numbers.',
+            },
+            {
+              value: 'CONTACTS_ONLY',
+              label: 'Reply to Added Contacts Only',
+              desc: 'AI only replies to contacts you have manually added. Unknown numbers are ignored.',
+            },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setForm(f => ({ ...f, autoreplyMode: opt.value as any }))}
+              className={cn(
+                'text-left p-4 rounded-xl border-2 transition',
+                form.autoreplyMode === opt.value
+                  ? 'border-whatsapp bg-emerald-50 dark:bg-emerald-900/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className={cn(
+                  'w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center flex-shrink-0',
+                  form.autoreplyMode === opt.value ? 'border-whatsapp' : 'border-gray-400'
+                )}>
+                  {form.autoreplyMode === opt.value && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-whatsapp" />
+                  )}
+                </div>
+                <span className="font-medium text-sm text-gray-900 dark:text-white">{opt.label}</span>
+              </div>
+              <p className="text-xs text-gray-400 ml-5">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+
+        {form.autoreplyMode === 'CONTACTS_ONLY' && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+            💡 Go to <strong>Contacts</strong> and use <strong>Add Contact</strong> to manually add numbers. Only those will receive AI replies.
+          </p>
+        )}
       </div>
 
       {/* AI Model */}

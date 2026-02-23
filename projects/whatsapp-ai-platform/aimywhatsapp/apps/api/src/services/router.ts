@@ -136,7 +136,17 @@ export class MessageRouter {
     const settings = await prisma.workspaceSettings.findUnique({
       where: { workspaceId },
     })
-    if (!settings) return
+    if (!settings) {
+      console.warn(`[Router] No workspace settings found for ${workspaceId} — skipping autoreply`)
+      return
+    }
+
+    // 6. Autoreply mode: CONTACTS_ONLY → only reply to manually added contacts
+    const autoreplyMode = (settings as any).autoreplyMode || 'EVERYONE'
+    if (autoreplyMode === 'CONTACTS_ONLY' && !contact.isManuallyAdded) {
+      console.log(`[Router] Skipping autoreply for ${contact.phoneNumber} — not in added contacts (CONTACTS_ONLY mode)`)
+      return
+    }
 
     try {
       // Approval mode: draft and wait for human approval

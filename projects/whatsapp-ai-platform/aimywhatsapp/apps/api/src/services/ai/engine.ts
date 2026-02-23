@@ -160,9 +160,11 @@ export class AIEngine {
     }
 
     // 7. Scoring + escalation
+    // NOTE: Only use user's text for escalation keywords — never scan the bot's own reply.
+    // The AI is allowed to naturally mention "human agent" without triggering escalation.
     const confidence = estimateConfidence(reply, kbContext, text)
-    const shouldEscalate =
-      confidence < (settings.confidenceThreshold || 0.6) || containsEscalationKeywords(text)
+    const userRequestsEscalation = containsEscalationKeywords(text)
+    const shouldEscalate = confidence < (settings.confidenceThreshold || 0.6) || userRequestsEscalation
     const sentiment = detectSentiment(text)
 
     return { reply, confidence, kbChunksUsed, shouldEscalate, sentiment }
@@ -193,40 +195,58 @@ function buildSystemPrompt(opts: {
 }): string {
   const parts: string[] = []
 
-  parts.push(
-    `You are ${opts.botName}${opts.persona ? `, ${opts.persona}` : ', a helpful AI assistant'}.`
-  )
-  parts.push(`You are talking with ${opts.contactName}.`)
-
-  if (opts.language && opts.language !== 'auto') {
-    parts.push(`Always reply in ${opts.language}.`)
+  // Identity — use persona if set, otherwise a sensible default
+  if (opts.persona && opts.persona.trim()) {
+    parts.push(`Your name is ${opts.botName}. ${opts.persona.trim()}`)
   } else {
-    parts.push(`Detect the language of the user's message and always reply in the same language.`)
-  }
-
-  if (opts.kbContext) {
     parts.push(
-      `\nUse the following knowledge base to answer questions. Only use information from this context. If the answer is not in the knowledge base, say you don't have that information and offer to connect them with a human agent.\n\n--- KNOWLEDGE BASE ---\n${opts.kbContext}\n--- END KNOWLEDGE BASE ---`
+      `Your name is ${opts.botName}. You are a helpful, friendly assistant. ` +
+      `You respond naturally and conversationally, like a knowledgeable human team member would.`
     )
   }
 
-  parts.push(`\nGuidelines:
-- Keep responses concise and conversational (suitable for WhatsApp)
-- Be helpful, friendly, and professional
-- Never make up information not in the knowledge base
-- For complaints, refunds, or sensitive issues, offer to connect with a human agent
-- Do not use markdown formatting (no **bold**, no bullet points with -)
-- Use plain text only; use emojis sparingly`)
+  parts.push(`You are chatting on WhatsApp with ${opts.contactName}.`)
+
+  // Language
+  if (opts.language && opts.language !== 'auto') {
+    parts.push(`Always reply in ${opts.language}.`)
+  } else {
+    parts.push(`Detect the language of the incoming message and always reply in that same language.`)
+  }
+
+  // Knowledge base context (RAG)
+  if (opts.kbContext) {
+    parts.push(
+      `\nUse the following knowledge base to answer questions accurately. ` +
+      `Cite only information present in the context. If the question is not covered, say you don't have that detail right now and ask if you can help with something else.\n\n` +
+      `--- KNOWLEDGE BASE ---\n${opts.kbContext}\n--- END KNOWLEDGE BASE ---`
+    )
+  } else {
+    parts.push(
+      `\nYou don't have a specific knowledge base loaded yet. Answer based on your general knowledge where helpful. ` +
+      `Be honest if you don't know something specific about the business.`
+    )
+  }
+
+  // Tone & format guidelines
+  parts.push(`\nStyle rules:
+- Write like a friendly, competent human — not a stiff chatbot
+- Keep messages short and to the point (WhatsApp style)
+- Use plain text only — no markdown, no ** bold **, no bullet dashes
+- Emojis are okay occasionally but don't overdo it
+- Never start a message with "Certainly!", "Great question!", or similar filler phrases
+- Only suggest connecting to a human agent if the user explicitly asks for one, or if it's clearly a complex complaint or legal issue`)
 
   return parts.join('\n')
 }
 
 function estimateConfidence(reply: string, kbContext: string, query: string): number {
+  // Don't penalise the bot for naturally mentioning "human agent" — that caused false escalations.
+  // Only use structural signals: reply length and whether KB context was available.
   if (!reply || reply.length < 10) return 0.1
-  if (reply.toLowerCase().includes("don't have") || reply.toLowerCase().includes('not sure')) return 0.4
-  if (reply.toLowerCase().includes('human agent') || reply.toLowerCase().includes('connect you')) return 0.3
-  if (kbContext && kbContext.length > 100) return 0.85
-  return 0.65
+  if (kbContext && kbContext.length > 100) return 0.88  // KB hit → high confidence
+  if (reply.length > 80) return 0.75                    // Substantive reply without KB → decent confidence
+  return 0.65                                            // Short reply, no KB → borderline
 }
 
 function containsEscalationKeywords(text: string): boolean {

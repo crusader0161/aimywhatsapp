@@ -3,12 +3,24 @@ import { z } from 'zod'
 import { prisma } from '../db/prisma'
 import { authenticate } from '../lib/auth'
 
+const createContactSchema = z.object({
+  workspaceId: z.string(),
+  sessionId: z.string(),
+  phoneNumber: z.string().min(7),
+  name: z.string().optional(),
+  displayName: z.string().optional(),
+  notes: z.string().optional(),
+  language: z.string().optional(),
+})
+
 const updateContactSchema = z.object({
   displayName: z.string().optional(),
   notes: z.string().optional(),
   autoreplyEnabled: z.boolean().optional(),
   approvalMode: z.boolean().optional(),
   isVip: z.boolean().optional(),
+  isManuallyAdded: z.boolean().optional(),
+  language: z.string().optional(),
 })
 
 const filterSchema = z.object({
@@ -24,6 +36,41 @@ const filterSchema = z.object({
 
 export default async function contactRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate)
+
+  // POST /contacts — manually add a contact (marks isManuallyAdded = true)
+  app.post('/', async (req: FastifyRequest, reply: FastifyReply) => {
+    const body = createContactSchema.parse(req.body)
+
+    // Normalise phone number: strip spaces/dashes, ensure no leading +
+    const rawPhone = body.phoneNumber.replace(/[\s\-()]/g, '')
+    const phone = rawPhone.startsWith('+') ? rawPhone.slice(1) : rawPhone
+    const jid = `${phone}@s.whatsapp.net`
+
+    const contact = await prisma.contact.upsert({
+      where: { workspaceId_jid: { workspaceId: body.workspaceId, jid } },
+      create: {
+        workspaceId: body.workspaceId,
+        sessionId: body.sessionId,
+        jid,
+        phoneNumber: `+${phone}`,
+        name: body.name,
+        displayName: body.displayName,
+        notes: body.notes,
+        language: body.language,
+        isManuallyAdded: true,
+        firstSeenAt: new Date(),
+      },
+      update: {
+        // Preserve existing contact but mark as manually added
+        isManuallyAdded: true,
+        displayName: body.displayName ?? undefined,
+        notes: body.notes ?? undefined,
+        language: body.language ?? undefined,
+      },
+    })
+
+    return reply.code(201).send(contact)
+  })
 
   // GET /contacts
   app.get('/', async (req: FastifyRequest, reply: FastifyReply) => {

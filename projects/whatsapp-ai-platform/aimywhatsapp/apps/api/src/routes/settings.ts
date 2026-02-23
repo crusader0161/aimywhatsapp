@@ -13,6 +13,7 @@ const settingsSchema = z.object({
   aiTemperature: z.number().min(0).max(1).optional(),
   confidenceThreshold: z.number().min(0).max(1).optional(),
   defaultLanguage: z.string().optional(),
+  autoreplyMode: z.enum(['EVERYONE', 'CONTACTS_ONLY']).optional(),
   businessHoursEnabled: z.boolean().optional(),
   businessHoursConfig: z.any().optional(),
   awayMessage: z.string().optional(),
