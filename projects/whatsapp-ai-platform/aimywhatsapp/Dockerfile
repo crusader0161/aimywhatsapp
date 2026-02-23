@@ -21,6 +21,10 @@ RUN cd apps/api && npx prisma generate && npm run build
 FROM base AS web-builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ARG NEXT_PUBLIC_API_URL=http://localhost:7779/api/v1
+ARG NEXT_PUBLIC_WS_URL=http://localhost:7779
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd apps/web && npm run build
 

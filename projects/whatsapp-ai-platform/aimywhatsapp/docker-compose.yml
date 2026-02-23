@@ -5,9 +5,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:7779}/api/v1
+        - NEXT_PUBLIC_WS_URL=${API_URL:-http://localhost:7779}
     ports:
       - '3000:3000'
-      - '3001:3001'
+      - '7779:7779'
     env_file: .env
     environment:
       - NODE_ENV=production
