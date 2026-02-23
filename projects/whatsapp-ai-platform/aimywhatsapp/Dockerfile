@@ -2,14 +2,12 @@ FROM node:20-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# ── Install all deps ──────────────────────────────────────────────────────────
+# ── Install all deps (hoisted via npm workspaces) ─────────────────────────────
 FROM base AS deps
-# Copy workspace manifests
 COPY package.json turbo.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
-# Copy lockfile if it exists (use .dockerignore to exclude node_modules)
 COPY package-lock.json* ./
 RUN npm install --legacy-peer-deps
 
@@ -19,7 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN cd apps/api && npx prisma generate && npm run build
 
-# ── Build Web ─────────────────────────────────────────────────────────────────
+# ── Build Web (standalone output) ─────────────────────────────────────────────
 FROM base AS web-builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -34,18 +32,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy API build
-COPY --from=api-builder /app/apps/api/dist ./apps/api/dist
-COPY --from=api-builder /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=api-builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=api-builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=api-builder /app/node_modules/@prisma ./node_modules/@prisma
+# --- API ---
+COPY --from=api-builder /app/apps/api/dist        ./apps/api/dist
+COPY --from=api-builder /app/apps/api/prisma      ./apps/api/prisma
+# Copy ALL root node_modules (hoisted — contains everything the API needs)
+COPY --from=api-builder /app/node_modules         ./node_modules
 
-# Copy Web build
-COPY --from=web-builder /app/apps/web/.next ./apps/web/.next
-COPY --from=web-builder /app/apps/web/public ./apps/web/public
-COPY --from=web-builder /app/apps/web/node_modules ./apps/web/node_modules
-COPY --from=web-builder /app/apps/web/package.json ./apps/web/package.json
+# --- Web (standalone) ---
+# standalone server + its own mini node_modules
+COPY --from=web-builder /app/apps/web/.next/standalone  ./apps/web/standalone
+COPY --from=web-builder /app/apps/web/.next/static      ./apps/web/standalone/apps/web/.next/static
+COPY --from=web-builder /app/apps/web/public            ./apps/web/standalone/apps/web/public
 
 # Root manifests
 COPY package.json turbo.json ./

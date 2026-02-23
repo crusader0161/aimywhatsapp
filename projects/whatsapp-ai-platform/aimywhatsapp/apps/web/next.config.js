@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone', // self-contained build for Docker
   // Required for @xyflow/react (uses ES modules)
   transpilePackages: ['@xyflow/react'],
   images: {

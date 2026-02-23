@@ -5,16 +5,17 @@ echo "🚀 Starting Aimywhatsapp..."
 
 # Run DB migrations
 echo "🗃️ Running database migrations..."
-cd apps/api && npx prisma migrate deploy && cd /app
+cd /app/apps/api && npx prisma migrate deploy
+cd /app
 
 # Start API server in background
-echo "⚡ Starting API server..."
-node apps/api/dist/server.js &
+echo "⚡ Starting API server on :3001..."
+node /app/apps/api/dist/server.js &
 API_PID=$!
 
-# Start Next.js in background
-echo "🌐 Starting web server..."
-cd apps/web && node_modules/.bin/next start -p 3000 &
+# Start Next.js standalone server
+echo "🌐 Starting web server on :3000..."
+PORT=3000 HOSTNAME=0.0.0.0 node /app/apps/web/standalone/apps/web/server.js &
 WEB_PID=$!
 
 echo "✅ Aimywhatsapp is running!"
