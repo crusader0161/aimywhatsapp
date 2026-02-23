@@ -3,9 +3,9 @@ set -e
 
 echo "🚀 Starting Aimywhatsapp..."
 
-# Run DB migrations
-echo "🗃️ Running database migrations..."
-cd /app/apps/api && npx prisma migrate deploy
+# Sync DB schema (using db push — works with or without migration history)
+echo "🗃️ Syncing database schema..."
+cd /app/apps/api && npx prisma db push --accept-data-loss
 cd /app
 
 # Start API server in background
