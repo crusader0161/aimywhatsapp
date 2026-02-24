@@ -93,15 +93,22 @@ export class AIEngine {
       }
     } else if (mediaType === 'DOCUMENT') {
       mediaContext = '[Document attached — please describe what you need help with]\n'
+    } else if (mediaType === 'VIDEO') {
+      mediaContext = '[Video received — note: we can process video content if relevant to the inquiry]\n'
+    } else if (mediaType === 'STICKER') {
+      // Stickers — acknowledge naturally, don't make it awkward
+      mediaContext = ''
     }
 
-    // 4. System prompt
+    // 4. System prompt — pass image/audio flags for context-aware instructions
     const systemPrompt = buildSystemPrompt({
       botName: settings.botName,
       persona: settings.botPersona || '',
       kbContext,
       contactName: contact.displayName || contact.name || contact.phoneNumber,
       language: contact.language || settings.defaultLanguage,
+      hasImage: !!imageBase64,
+      hasAudio: mediaType === 'AUDIO',
     })
 
     // 5. Build OpenAI-format messages (OpenRouter compatible)
@@ -194,6 +201,8 @@ function buildSystemPrompt(opts: {
   kbContext: string
   contactName: string
   language: string
+  hasImage?: boolean
+  hasAudio?: boolean
 }): string {
   const parts: string[] = []
 
@@ -202,18 +211,45 @@ function buildSystemPrompt(opts: {
     parts.push(`Your name is ${opts.botName}. ${opts.persona.trim()}`)
   } else {
     parts.push(
-      `Your name is ${opts.botName}. You are a helpful, friendly assistant. ` +
-      `You respond naturally and conversationally, like a knowledgeable human team member would.`
+      `Your name is ${opts.botName}. You are a helpful, friendly customer service assistant. ` +
+      `You respond naturally and conversationally, like a knowledgeable human team member would. ` +
+      `When a customer is interested in a service, guide them through the order process naturally: ` +
+      `understand what they need, how many items, collect their location, provide a quote, ` +
+      `schedule pickup if needed, and then request payment once the order is confirmed.`
     )
   }
 
   parts.push(`You are chatting on WhatsApp with ${opts.contactName}.`)
 
-  // Language
+  // Language — Hinglish-aware
   if (opts.language && opts.language !== 'auto') {
     parts.push(`Always reply in ${opts.language}.`)
   } else {
-    parts.push(`Detect the language of the incoming message and always reply in that same language.`)
+    parts.push(
+      `Detect the language of the incoming message and always reply in that same language. ` +
+      `If the customer writes in a mix of Hindi and English (Hinglish), respond naturally in the same Hinglish style — ` +
+      `do NOT force full Hindi or full English. Match their communication style exactly.`
+    )
+  }
+
+  // Image handling — context-aware instructions when image is present
+  if (opts.hasImage) {
+    parts.push(
+      `\nIMAGE RECEIVED — The customer has just sent you a photo. Analyze it carefully and respond accordingly:\n` +
+      `- Physical media (CDs, DVDs, VCDs, VHS tapes, film reels, photo albums, printed photos): ` +
+        `Look at the image carefully. Count items if visible. Note any labels, handwritten dates, or event names on them. ` +
+        `Acknowledge what you see briefly (1 sentence), then ask for the total quantity if not obvious, ` +
+        `or move straight to confirming the service they need.\n` +
+      `- Payment screenshot or receipt: Acknowledge payment warmly, confirm what happens next.\n` +
+      `- Location / Google Maps screenshot: Note the location and confirm pickup arrangement.\n` +
+      `- Something else: Acknowledge it naturally and ask what they need help with.\n` +
+      `Keep your image response to 1-2 sentences max. Do not over-describe what you see.`
+    )
+  }
+
+  // Audio context
+  if (opts.hasAudio) {
+    parts.push(`\nThe customer sent a voice message (transcript provided above). Respond to what they said naturally.`)
   }
 
   // Knowledge base context (RAG)
@@ -246,7 +282,20 @@ function buildSystemPrompt(opts: {
 4. For a greeting or opening message: one warm sentence + one question. That is all.
 5. If the persona document has long sample responses — IGNORE those lengths. They are examples of content, not format.
 6. Vary your opener — do not start every message the same way.
-7. One emoji max per message.`)
+7. One emoji max per message.
+8. When the customer asks for quantity-based pricing (e.g. "38 CDs ka kitna hoga?"), calculate it yourself and give the answer directly. Do not ask them to check the website.`)
+
+  // Order intake flow guidance — helps bot collect all needed details naturally
+  parts.push(`\nORDER INTAKE FLOW — When a customer wants to place an order, collect these details naturally one or two at a time (don't dump all questions at once):
+Step 1: Understand what they have (type of media: VCD/DVD/VHS/photos, and format if mentioned)
+Step 2: Get the quantity (how many CDs/tapes/photos)
+Step 3: If they send images of their media — analyze and acknowledge, confirm quantity
+Step 4: Provide the quote (calculate total and mention any applicable discount)
+Step 5: Ask for their location / pickup address
+Step 6: Confirm preferred pickup date and time
+Step 7: Ask how they want the output — pen drive or cloud storage (Google Drive / OneDrive / Dropbox)
+Step 8: Confirm order and request advance payment using [[PAYMENT:AMOUNT:DESCRIPTION]]
+NOTE: You don't have to follow these steps rigidly — if the customer volunteers multiple details at once, adapt accordingly.`)
 
   // Payment signal instructions
   parts.push(`\nPAYMENT INSTRUCTIONS:
