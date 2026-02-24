@@ -233,7 +233,7 @@ export class WASessionManager {
 
     // Show typing indicator and delay proportional to reply length — feels human
     try { await session.socket.sendPresenceUpdate('composing', jid) } catch (_) {}
-    const typingMs = Math.min(Math.max(content.length * 35, 1500), 5000)
+    const typingMs = Math.min(Math.max(content.length * 50, 2000), 9000)
     await new Promise((r) => setTimeout(r, typingMs))
     try { await session.socket.sendPresenceUpdate('paused', jid) } catch (_) {}
 
