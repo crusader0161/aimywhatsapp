@@ -1,3 +1,4 @@
+import { rmSync } from 'fs'
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../db/prisma'
@@ -206,17 +207,23 @@ export default async function whatsappRoutes(app: FastifyInstance) {
     const session = await prisma.whatsappSession.findUnique({ where: { id: req.params.id } })
     if (!session) return reply.code(404).send({ error: 'Session not found' })
 
-    await manager.disconnectSession(session.id)
+    // Disconnect gracefully — ignore errors if already disconnected
+    try { await manager.disconnectSession(session.id) } catch (_) {}
 
-    // Must clean up FK-dependent records before deleting the session
+    // Must clean up FK-dependent records in correct order before deleting the session
     await prisma.$transaction(async (tx) => {
-      // Delete contacts tied to this session (cascades ContactLabel, ContactCustomField)
-      await tx.contact.deleteMany({ where: { sessionId: session.id } })
-      // Delete conversations tied to this session (cascades Message)
+      // 1. Delete conversations first (Conversation.contactId FK → Contact, cascades Messages)
       await tx.conversation.deleteMany({ where: { sessionId: session.id } })
-      // Now safe to delete the session
+      // 2. Delete contacts (cascades ContactLabel, ContactCustomField)
+      await tx.contact.deleteMany({ where: { sessionId: session.id } })
+      // 3. Now safe to delete the session
       await tx.whatsappSession.delete({ where: { id: session.id } })
     })
+
+    // Clean up WhatsApp credentials directory
+    if (session.credsPath) {
+      try { rmSync(session.credsPath, { recursive: true, force: true }) } catch (_) {}
+    }
 
     return reply.code(204).send()
   })

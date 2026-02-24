@@ -7,7 +7,7 @@ import {
   proto,
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
-import { mkdirSync } from 'fs'
+import { mkdirSync, rmSync } from 'fs'
 import QRCode from 'qrcode'
 import { prisma } from '../../db/prisma'
 import { MessageRouter } from '../router'
@@ -151,6 +151,8 @@ export class WASessionManager {
           sessionInfo.status = 'disconnected'
 
           if (statusCode === DisconnectReason.loggedOut) {
+            // Clear stale credentials so next startSession shows a fresh QR
+            try { rmSync(credsPath, { recursive: true, force: true }) } catch (_) {}
             await prisma.whatsappSession.update({
               where: { id: sessionId },
               data: { status: 'DISCONNECTED' },
