@@ -287,17 +287,39 @@ export default function KnowledgePage() {
               <button onClick={testKb} className="px-5 py-2.5 bg-whatsapp text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition">Test</button>
             </div>
             {testResult && (
-              <div className="mt-4 space-y-2">
-                {testResult.results.length === 0 && <p className="text-sm text-gray-400">No relevant content found in KB.</p>}
-                {testResult.results.map((r: any, i: number) => (
-                  <div key={i} className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Match #{i + 1}</span>
-                      <span className="text-xs text-gray-400">{Math.round(r.score * 100)}% match</span>
+              <div className="mt-4 space-y-3">
+                {/* AI Answer */}
+                {testResult.aiAnswer ? (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">🤖 AI Answer</span>
                     </div>
-                    <p className="text-xs text-gray-700 dark:text-gray-300">{r.content}</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{testResult.aiAnswer}</p>
                   </div>
-                ))}
+                ) : testResult.results.length === 0 ? (
+                  <p className="text-sm text-gray-400">No relevant content found in KB.</p>
+                ) : (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">KB matched content but AI response unavailable.</p>
+                )}
+                {/* Source chunks */}
+                {testResult.results.length > 0 && (
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 select-none">
+                      📚 {testResult.results.length} source chunk{testResult.results.length !== 1 ? 's' : ''} used
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {testResult.results.map((r: any, i: number) => (
+                        <div key={i} className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                          <div className="flex justify-between mb-1">
+                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Match #{i + 1}</span>
+                            <span className="text-xs text-gray-400">{Math.round(r.score * 100)}% match</span>
+                          </div>
+                          <p className="text-xs text-gray-700 dark:text-gray-300">{r.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>

@@ -191,17 +191,66 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
     const { searchSimilar } = await import('../lib/qdrant')
 
     try {
+      // 1. Vector search
       const embedding = await getEmbedding(body.query)
       const results = await searchSimilar(req.params.id, embedding, 5, 0.6)
 
+      const searchResults = results.map((r) => ({
+        score: r.score,
+        content: r.payload.content,
+        chunkId: r.payload.chunkId,
+        documentId: r.payload.documentId,
+      }))
+
+      // 2. Build KB context from search results
+      let aiAnswer: string | null = null
+      if (results.length > 0) {
+        const kbContext = results.map((r, i) => `[Source ${i + 1}]: ${r.payload.content}`).join('\n\n')
+
+        // 3. Call AI via OpenRouter
+        try {
+          const OpenAI = (await import('openai')).default
+          const openrouter = new OpenAI({
+            apiKey: process.env.OPENROUTER_API_KEY!,
+            baseURL: 'https://openrouter.ai/api/v1',
+            defaultHeaders: {
+              'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+              'X-Title': 'Aimywhatsapp KB Test',
+            },
+          })
+
+          const model = process.env.DEFAULT_AI_MODEL || 'anthropic/claude-sonnet-4-5'
+
+          const completion = await openrouter.chat.completions.create({
+            model,
+            max_tokens: 512,
+            temperature: 0.4,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a helpful assistant. Use ONLY the provided knowledge base context to answer the user\'s question. ' +
+                  'If the context does not contain enough information to answer, say so clearly. ' +
+                  'Be concise and accurate. Do not make up information.',
+              },
+              {
+                role: 'user',
+                content: `Knowledge base context:\n\n${kbContext}\n\nQuestion: ${body.query}`,
+              },
+            ],
+          })
+
+          aiAnswer = completion.choices[0]?.message?.content?.trim() || null
+        } catch (aiErr: any) {
+          console.error('KB test AI error:', aiErr?.message || aiErr)
+          aiAnswer = null
+        }
+      }
+
       return reply.send({
         query: body.query,
-        results: results.map((r) => ({
-          score: r.score,
-          content: r.payload.content,
-          chunkId: r.payload.chunkId,
-          documentId: r.payload.documentId,
-        })),
+        aiAnswer,
+        results: searchResults,
       })
     } catch (err: any) {
       return reply.code(500).send({ error: err.message })
