@@ -207,7 +207,17 @@ export default async function whatsappRoutes(app: FastifyInstance) {
     if (!session) return reply.code(404).send({ error: 'Session not found' })
 
     await manager.disconnectSession(session.id)
-    await prisma.whatsappSession.delete({ where: { id: session.id } })
+
+    // Must clean up FK-dependent records before deleting the session
+    await prisma.$transaction(async (tx) => {
+      // Delete contacts tied to this session (cascades ContactLabel, ContactCustomField)
+      await tx.contact.deleteMany({ where: { sessionId: session.id } })
+      // Delete conversations tied to this session (cascades Message)
+      await tx.conversation.deleteMany({ where: { sessionId: session.id } })
+      // Now safe to delete the session
+      await tx.whatsappSession.delete({ where: { id: session.id } })
+    })
+
     return reply.code(204).send()
   })
 }

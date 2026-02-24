@@ -56,14 +56,16 @@ export class AIEngine {
     const kbChunksUsed: string[] = []
 
     if (text) {
-      const defaultKB = await prisma.knowledgeBase.findFirst({
-        where: { workspaceId, isDefault: true },
-      })
+      // Prefer the default KB; fall back to any KB in the workspace
+      const defaultKB =
+        (await prisma.knowledgeBase.findFirst({ where: { workspaceId, isDefault: true } })) ||
+        (await prisma.knowledgeBase.findFirst({ where: { workspaceId } }))
 
       if (defaultKB) {
         try {
           const queryEmbedding = await getEmbedding(text)
-          const results = await searchSimilar(defaultKB.id, queryEmbedding, 5, 0.5)
+          // Use 0.35 threshold (same as KB test endpoint) — 0.5 was too strict and missed valid matches
+          const results = await searchSimilar(defaultKB.id, queryEmbedding, 5, 0.35)
           if (results.length > 0) {
             kbContext = results.map((r, i) => `[Source ${i + 1}]: ${r.payload.content}`).join('\n\n')
             kbChunksUsed.push(...results.map((r) => r.payload.chunkId))

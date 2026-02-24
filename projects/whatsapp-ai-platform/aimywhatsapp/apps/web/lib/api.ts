@@ -15,7 +15,10 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Auto-refresh on 401
+// Auto-refresh on 401 — deduplicated to prevent race condition on concurrent 401s.
+// Only one refresh call runs at a time; all other 401s wait for the same promise.
+let refreshPromise: Promise<void> | null = null
+
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -23,19 +26,36 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
       const { refreshToken, updateTokens, logout } = useAuthStore.getState()
+
       if (!refreshToken) {
         logout()
         window.location.href = '/auth/login'
         return Promise.reject(error)
       }
+
+      // If a refresh is already in flight, wait for it; otherwise start one
+      if (!refreshPromise) {
+        refreshPromise = axios
+          .post(`${API_URL}/auth/refresh`, { refreshToken })
+          .then((res) => {
+            updateTokens(res.data.accessToken, res.data.refreshToken)
+          })
+          .catch(() => {
+            logout()
+            window.location.href = '/auth/login'
+          })
+          .finally(() => {
+            refreshPromise = null
+          })
+      }
+
       try {
-        const res = await axios.post(`${API_URL}/auth/refresh`, { refreshToken })
-        updateTokens(res.data.accessToken, res.data.refreshToken)
-        original.headers.Authorization = `Bearer ${res.data.accessToken}`
+        await refreshPromise
+        const newToken = useAuthStore.getState().accessToken
+        if (!newToken) return Promise.reject(error) // logout already handled
+        original.headers.Authorization = `Bearer ${newToken}`
         return api(original)
       } catch {
-        logout()
-        window.location.href = '/auth/login'
         return Promise.reject(error)
       }
     }
