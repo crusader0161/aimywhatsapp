@@ -7,6 +7,7 @@ import multipart from '@fastify/multipart'
 import rateLimit from '@fastify/rate-limit'
 import { Server } from 'socket.io'
 
+import { existsSync } from 'fs'
 import { prisma } from './db/prisma'
 import { redis } from './lib/redis'
 import { setupSocketServer } from './realtime/socket'
@@ -104,6 +105,29 @@ async function buildApp() {
   return app
 }
 
+
+async function autoRestoreSessions() {
+  const { WASessionManager } = await import('./services/whatsapp/session-manager')
+  const manager = WASessionManager.getInstance()
+
+  // Find all sessions that have saved credentials on disk
+  const sessions = await prisma.whatsappSession.findMany()
+  let count = 0
+
+  for (const session of sessions) {
+    const credsFile = 
+    if (!existsSync(credsFile)) continue
+
+    // Fire-and-forget: session will connect using saved creds (no QR needed)
+    manager.startSession(session.id, session.workspaceId, session.accountId, session.credsPath)
+      .then(() => console.log())
+      .catch((err: any) => console.log())
+    count++
+  }
+
+  if (count > 0) console.log()
+}
+
 async function start() {
   const fastify = await buildApp()
 
@@ -121,6 +145,9 @@ async function start() {
 
   // Setup background job queues
   await setupQueues()
+
+  // Auto-reconnect WhatsApp sessions that had active credentials
+  autoRestoreSessions().catch((e) => console.error('[AutoRestore] Error:', e))
 
   // Start listening
   try {
