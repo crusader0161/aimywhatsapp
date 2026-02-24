@@ -49,7 +49,8 @@ export class MessageRouter {
     }
 
     // Get or create contact
-    const phoneNumber = jid.replace('@s.whatsapp.net', '')
+    // Strip both @s.whatsapp.net and @lid suffixes to get a clean phone number
+    const phoneNumber = '+' + jid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/^\+/, '')
     const contact = await prisma.contact.upsert({
       where: { workspaceId_jid: { workspaceId, jid } },
       create: {
@@ -143,7 +144,9 @@ export class MessageRouter {
 
     // 6. Autoreply mode: CONTACTS_ONLY → only reply to manually added contacts
     const autoreplyMode = (settings as any).autoreplyMode || 'EVERYONE'
-    if (autoreplyMode === 'CONTACTS_ONLY' && !contact.isManuallyAdded) {
+    // @lid = alternate address for same real contact (WhatsApp multi-device) — bypass CONTACTS_ONLY
+    const isLidJid = jid.endsWith('@lid')
+    if (autoreplyMode === 'CONTACTS_ONLY' && !contact.isManuallyAdded && !isLidJid) {
       console.log(`[Router] Skipping autoreply for ${contact.phoneNumber} — not in added contacts (CONTACTS_ONLY mode)`)
       return
     }
