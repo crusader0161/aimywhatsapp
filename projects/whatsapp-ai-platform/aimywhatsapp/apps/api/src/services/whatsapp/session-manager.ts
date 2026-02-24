@@ -231,6 +231,12 @@ export class WASessionManager {
     const session = this.sessions.get(sessionId)
     if (!session?.socket) throw new Error('Session not connected')
 
+    // Show typing indicator and delay proportional to reply length — feels human
+    try { await session.socket.sendPresenceUpdate('composing', jid) } catch (_) {}
+    const typingMs = Math.min(Math.max(content.length * 35, 1500), 5000)
+    await new Promise((r) => setTimeout(r, typingMs))
+    try { await session.socket.sendPresenceUpdate('paused', jid) } catch (_) {}
+
     const result = await session.socket.sendMessage(jid, { text: content })
     return result?.key.id ?? undefined
   }
