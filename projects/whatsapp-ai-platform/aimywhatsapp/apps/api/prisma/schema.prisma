@@ -35,6 +35,7 @@ model Workspace {
   webhooks          Webhook[]
   settings          WorkspaceSettings?
   auditLogs         AuditLog[]
+  paymentLinks      PaymentLink[]
   labels            Label[]
 }
 
@@ -166,6 +167,7 @@ model Contact {
   conversations Conversation[]
   customFields  ContactCustomField[]
 
+  paymentLinks  PaymentLink[]
   @@unique([workspaceId, jid])
 }
 
@@ -508,4 +510,37 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  CANCELLED
+  FAILED
+}
+
+model PaymentLink {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  sessionId      String
+  contactId      String
+  conversationId String?
+
+  cashfreeLinkId String        @unique
+  paymentUrl     String
+  amount         Float
+  currency       String        @default("INR")
+  purpose        String
+
+  status         PaymentStatus @default(PENDING)
+  paidAt         DateTime?
+  paidAmount     Float?
+  paymentMethod  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id])
 }

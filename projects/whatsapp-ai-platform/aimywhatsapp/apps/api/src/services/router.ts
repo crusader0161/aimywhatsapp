@@ -221,11 +221,44 @@ export class MessageRouter {
         return
       }
 
+      // Intercept [[PAYMENT:amount:description]] signal from AI
+      let finalReply = aiResponse.reply
+      const paymentMatch = finalReply.match(/\[\[PAYMENT:(\d+(?:\.\d+)?):([^\]]+)\]\]/)
+      if (paymentMatch) {
+        const payAmount = parseFloat(paymentMatch[1])
+        const payPurpose = paymentMatch[2].trim()
+        try {
+          const { createPaymentLink } = await import('./payment/cashfree')
+          const paymentResult = await createPaymentLink({
+            amount: payAmount,
+            purpose: payPurpose,
+            customerName: contact.displayName || contact.name || 'Customer',
+            customerPhone: contact.phoneNumber,
+          })
+          await prisma.paymentLink.create({
+            data: {
+              workspaceId,
+              sessionId,
+              contactId: contact.id,
+              cashfreeLinkId: paymentResult.linkId,
+              paymentUrl: paymentResult.linkUrl,
+              amount: payAmount,
+              purpose: payPurpose,
+            },
+          })
+          finalReply = finalReply.replace(/\[\[PAYMENT:[^\]]+\]\]/, paymentResult.linkUrl)
+          console.log(`[Router] Payment link generated for ${contact.phoneNumber}: ₹${payAmount}`)
+        } catch (err: any) {
+          console.error('[Router] Payment link error:', err?.message)
+          finalReply = finalReply.replace(/\[\[PAYMENT:[^\]]+\]\]/, '(payment link coming shortly — our team will share it with you)')
+        }
+      }
+
       // Send AI reply
       const waMessageId = await WASessionManager.getInstance().sendMessage(
         sessionId,
         jid,
-        aiResponse.reply
+        finalReply
       )
 
       const outboundMessage = await prisma.message.create({
@@ -235,7 +268,7 @@ export class MessageRouter {
           waMessageId,
           direction: 'OUTBOUND',
           senderType: 'BOT',
-          content: aiResponse.reply,
+          content: finalReply,
           confidence: aiResponse.confidence,
           kbChunksUsed: aiResponse.kbChunksUsed,
           sentiment: aiResponse.sentiment as any,

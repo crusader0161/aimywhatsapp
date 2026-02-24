@@ -24,6 +24,7 @@ import flowRoutes from './routes/flows'
 import broadcastRoutes from './routes/broadcasts'
 import analyticsRoutes from './routes/analytics'
 import settingsRoutes from './routes/settings'
+import paymentRoutes from './routes/payments'
 
 // Extend FastifyInstance with socket.io
 declare module 'fastify' {
@@ -101,6 +102,7 @@ async function buildApp() {
   await app.register(broadcastRoutes,    { prefix: `${API_PREFIX}/broadcasts` })
   await app.register(analyticsRoutes,    { prefix: `${API_PREFIX}/analytics` })
   await app.register(settingsRoutes,     { prefix: `${API_PREFIX}/settings` })
+  await app.register(paymentRoutes,      { prefix: `${API_PREFIX}/payments` })
 
   return app
 }

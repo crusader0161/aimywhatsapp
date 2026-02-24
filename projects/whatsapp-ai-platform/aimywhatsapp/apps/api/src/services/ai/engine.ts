@@ -248,6 +248,14 @@ function buildSystemPrompt(opts: {
 6. Vary your opener — do not start every message the same way.
 7. One emoji max per message.`)
 
+  // Payment signal instructions
+  parts.push(`\nPAYMENT INSTRUCTIONS:
+When the customer has confirmed their order and you have agreed on the final amount, include this exact signal in your reply (just once, at the end):
+[[PAYMENT:AMOUNT:DESCRIPTION]]
+Replace AMOUNT with the number (e.g. 3600) and DESCRIPTION with a brief order summary (e.g. VHS Digitization - 3 tapes).
+Example: "Here is your payment link for the order: [[PAYMENT:3600:VHS Digitization - 3 tapes]]"
+The system will automatically replace this with a real payment link. Only include it when the customer has explicitly confirmed they want to proceed with the order and you have a final amount.`)
+
   // Discount negotiation rules
   parts.push(`\nDISCOUNT NEGOTIATION RULES (follow strictly):
 - Never offer a discount unprompted. Only negotiate when customer explicitly asks.
