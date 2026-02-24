@@ -63,7 +63,7 @@ export class AIEngine {
       if (defaultKB) {
         try {
           const queryEmbedding = await getEmbedding(text)
-          const results = await searchSimilar(defaultKB.id, queryEmbedding, 5, 0.7)
+          const results = await searchSimilar(defaultKB.id, queryEmbedding, 5, 0.5)
           if (results.length > 0) {
             kbContext = results.map((r, i) => `[Source ${i + 1}]: ${r.payload.content}`).join('\n\n')
             kbChunksUsed.push(...results.map((r) => r.payload.chunkId))

@@ -193,7 +193,7 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
     try {
       // 1. Vector search
       const embedding = await getEmbedding(body.query)
-      const results = await searchSimilar(req.params.id, embedding, 5, 0.6)
+      const results = await searchSimilar(req.params.id, embedding, 5, 0.35)
 
       const searchResults = results.map((r) => ({
         score: r.score,
