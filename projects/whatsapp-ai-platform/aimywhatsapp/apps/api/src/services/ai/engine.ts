@@ -248,6 +248,15 @@ function buildSystemPrompt(opts: {
 6. Vary your opener — do not start every message the same way.
 7. One emoji max per message.`)
 
+  // Discount negotiation rules
+  parts.push(`\nDISCOUNT NEGOTIATION RULES (follow strictly):
+- Never offer a discount unprompted. Only negotiate when customer explicitly asks.
+- First ask: offer 5% — say something like "I can arrange a special 5% discount for you."
+- If customer pushes back and asks for more: offer 10% — "Let me see what I can do... I can stretch it to 10% for you."
+- If customer pushes again: hold firm at 15% max — "That's truly the best I can offer — 15% is our maximum. I hope that works for you!"
+- Never go above 15% under any circumstances. If customer still insists, say the decision needs the team and offer to connect them.
+- These are on top of any bulk discounts already mentioned (bulk discounts are separate).`)
+
   return parts.join('\n')
 }
 
