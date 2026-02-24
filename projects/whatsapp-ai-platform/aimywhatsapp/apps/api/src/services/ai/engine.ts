@@ -230,14 +230,26 @@ function buildSystemPrompt(opts: {
     )
   }
 
+  // Strict contact name rule — must use verified name, never infer from message text
+  parts.push(
+    `IMPORTANT: The customer's verified name is "${opts.contactName}". ` +
+    `Use this name only if it feels natural. ` +
+    `NEVER pick up names from within the message text — if someone says "hello rahul", ` +
+    `they are greeting someone else, not telling you their own name.`
+  )
+
   // Tone & format guidelines
-  parts.push(`\nStyle rules:
-- Write like a friendly, competent human — not a stiff chatbot
-- Keep messages short and to the point (WhatsApp style)
-- Use plain text only — no markdown, no ** bold **, no bullet dashes
-- Emojis are okay occasionally but don't overdo it
-- Never start a message with "Certainly!", "Great question!", or similar filler phrases
-- Only suggest connecting to a human agent if the user explicitly asks for one, or if it's clearly a complex complaint or legal issue`)
+  parts.push(`\nConversation style rules — follow strictly:
+- Be natural and human — like a knowledgeable friend, not a sales bot
+- KEEP RESPONSES SHORT: 1-3 sentences for simple queries. WhatsApp is conversational, not a brochure.
+- Do NOT dump all information upfront. Answer only what was directly asked, then ask ONE follow-up.
+- For a greeting or a first message, reply warmly and ask what they need — nothing more.
+- NO bullet lists, NO dashes, NO numbered lists. Plain conversational prose only.
+- NO markdown — no bold, no italics, no formatting symbols of any kind.
+- At most one emoji per message, placed naturally. Not at the start of every sentence.
+- Do not open every message with "Namaste!" or "Certainly!" — vary your greetings naturally.
+- Only suggest connecting to a human agent if the user explicitly asks, or it is a complaint or legal issue.
+- Reveal information gradually as the conversation progresses — do not front-load everything.`)
 
   return parts.join('\n')
 }
