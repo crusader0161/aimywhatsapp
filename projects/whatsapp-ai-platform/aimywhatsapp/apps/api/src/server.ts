@@ -110,22 +110,20 @@ async function autoRestoreSessions() {
   const { WASessionManager } = await import('./services/whatsapp/session-manager')
   const manager = WASessionManager.getInstance()
 
-  // Find all sessions that have saved credentials on disk
   const sessions = await prisma.whatsappSession.findMany()
   let count = 0
 
   for (const session of sessions) {
-    const credsFile = 
+    const credsFile = session.credsPath + '/creds.json'
     if (!existsSync(credsFile)) continue
 
-    // Fire-and-forget: session will connect using saved creds (no QR needed)
     manager.startSession(session.id, session.workspaceId, session.accountId, session.credsPath)
-      .then(() => console.log())
-      .catch((err: any) => console.log())
+      .then(() => console.log('[AutoRestore] Connected: ' + session.accountId))
+      .catch((err) => console.log('[AutoRestore] ' + session.accountId + ': ' + (err && err.message ? err.message : err)))
     count++
   }
 
-  if (count > 0) console.log()
+  if (count > 0) console.log('[AutoRestore] Restoring ' + count + ' session(s)...')
 }
 
 async function start() {
