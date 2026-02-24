@@ -10,15 +10,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { isAuthenticated } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Wait for client-side mount before checking auth.
+  // Zustand persist rehydrates from localStorage after the first render,
+  // so we must not redirect until mounted (hydration complete).
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
-    if (!isAuthenticated) router.replace('/auth/login')
-  }, [isAuthenticated, router])
+    if (mounted && !isAuthenticated) router.replace('/auth/login')
+  }, [mounted, isAuthenticated, router])
 
   // Close mobile sidebar on route change
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
+
+  // Show nothing while waiting for hydration (avoids flash of redirect)
+  if (!mounted) return null
 
   if (!isAuthenticated) return null
 
