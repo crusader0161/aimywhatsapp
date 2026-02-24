@@ -110,7 +110,10 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       ORDER BY date ASC
     `
 
-    return reply.send(messages)
+    // Prisma $queryRaw returns COUNT() as BigInt — convert to Number for JSON serialization
+    const serializeRows = (rows: any[]) =>
+      rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'bigint' ? Number(v) : v])))
+    return reply.send(serializeRows(messages as any[]))
   })
 
   // GET /analytics/contacts - growth over time
@@ -128,7 +131,9 @@ export default async function analyticsRoutes(app: FastifyInstance) {
       ORDER BY date ASC
     `
 
-    return reply.send(contacts)
+    const serializeRows = (rows: any[]) =>
+      rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === 'bigint' ? Number(v) : v])))
+    return reply.send(serializeRows(contacts as any[]))
   })
 
   // GET /analytics/sentiment
