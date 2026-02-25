@@ -95,9 +95,6 @@ export class AIEngine {
       mediaContext = '[Document attached — please describe what you need help with]\n'
     } else if (mediaType === 'VIDEO') {
       mediaContext = '[Video received — note: we can process video content if relevant to the inquiry]\n'
-    } else if (mediaType === 'STICKER') {
-      // Stickers — acknowledge naturally, don't make it awkward
-      mediaContext = ''
     }
 
     // 4. System prompt — pass image/audio flags for context-aware instructions
