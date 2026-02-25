@@ -186,8 +186,8 @@ export default function KnowledgePage() {
               <label className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl hover:border-whatsapp hover:bg-emerald-50 dark:hover:bg-emerald-900/10 cursor-pointer transition">
                 <Upload className="w-6 h-6 text-gray-400" />
                 <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">Upload File</span>
-                <span className="text-xs text-gray-400">PDF, DOCX, TXT, CSV</span>
-                <input type="file" accept=".pdf,.docx,.txt,.csv" onChange={handleFileUpload} className="hidden" />
+                <span className="text-xs text-gray-400">PDF, DOCX, TXT, CSV, MD</span>
+                <input type="file" accept=".pdf,.docx,.txt,.csv,.md" onChange={handleFileUpload} className="hidden" />
               </label>
 
               {/* URL */}

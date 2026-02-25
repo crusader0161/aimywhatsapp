@@ -89,7 +89,9 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
 
       const stored = await saveUploadedFile(file, 'documents')
       const ext = stored.filename.split('.').pop()?.toUpperCase() || 'TXT'
-      const docType = ['PDF', 'DOCX', 'TXT', 'CSV'].includes(ext) ? ext : 'TXT'
+      // MD is treated as TXT (plain text read, markdown content supported)
+      const normalizedExt = ext === 'MD' ? 'TXT' : ext
+      const docType = ['PDF', 'DOCX', 'TXT', 'CSV'].includes(normalizedExt) ? normalizedExt : 'TXT'
 
       const doc = await prisma.kBDocument.create({
         data: {
